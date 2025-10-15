@@ -56,7 +56,7 @@ const ProposalModal = ({
       description: projectDescription, // Check if this is null or undefined
     });
 
-    const response = await axios.post('http://localhost:5000/generate-proposal', {
+    const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
       id: projectId,
       title: projectTitle,
       description: projectDescription,
@@ -146,7 +146,7 @@ const ProposalModal = ({
         description: proposal
       });
         // Save bid history
-    await axios.post('http://localhost:5000/save-bid-history', {
+    await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
       project_id: projectId,
       bidder_id: 'MANUAL_BIDDER', // Replace with actual bidder ID if available
       amount: Number(amount),

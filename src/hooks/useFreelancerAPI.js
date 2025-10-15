@@ -13,6 +13,7 @@ export const useFreelancerAPI = () => {
   const [skillsCache, setSkillsCache] = useState({});
 
 
+
   const getUserInfo = useCallback(async () => {
     try {
       const response = await axios.get('https://www.freelancer.com/api/users/0.1/self', {
@@ -47,6 +48,8 @@ export const useFreelancerAPI = () => {
       throw new Error('Failed to fetch user skills');
     }
   }
+
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const getProjectsBySkills = useCallback(async (skillIds) => {
     if (!skillIds || skillIds.length === 0) {
@@ -269,6 +272,104 @@ export const useFreelancerAPI = () => {
 // }, [projects, token, cooldown, getUserInfo]);
 
 
+// const autoPlaceBids = useCallback(async () => {
+//   if (cooldown) {
+//     console.log('Cooldown active. Skipping auto-bid.');
+//     return;
+//   }
+
+//   const nowUnix = Math.floor(Date.now() / 1000);
+//   const recentProjects = projects.filter((project) => {
+//     if (!project.submitdate) {
+//       console.log(`Project ${project.id} has no submit date. Skipping.`);
+//       return false;
+//     }
+
+//     const isRecent = nowUnix - project.submitdate <= 60; // Projects less than 1 minute old
+//     if (!isRecent) {
+//       console.log(`Project ${project.id} is not recent. Skipping.`);
+//     }
+//     return isRecent;
+//   });
+
+//   console.log(`Recent projects for auto-bid:`, recentProjects);
+
+//   if (recentProjects.length === 0) {
+//     console.log('No recent projects to bid on.');
+//     return;
+//   }
+
+//   console.log(`Found ${recentProjects.length} recent projects. Starting auto-bid...`);
+
+//   try {
+//     const bidderId = await getUserInfo();
+
+//     for (const project of recentProjects) {
+//       try {
+//         const bidAmount = calculateBidAmount(project);
+
+//         // Skip projects that do not meet the criteria
+//         if (bidAmount === null) {
+//           console.log(`Skipping project ${project.id} due to bid criteria.`);
+//           continue;
+//         }
+
+//         console.log(`Generating proposal for project ${project.id}...`);
+//         const response = await axios.post('http://localhost:5000/generate-proposal', {
+//           id: project.id,
+//           title: project.title,
+//           description: project.description || 'No description available',
+//         });
+
+//         if (!response.data || !response.data.proposal) {
+//           console.error(`Failed to generate proposal for project ${project.id}. Response:`, response.data);
+//           continue;
+//         }
+
+//         const proposal = response.data.proposal;
+//         console.log(`Proposal generated for project ${project.id}:`, proposal);
+
+//         console.log(`Placing bid for project ${project.id} with amount ${bidAmount}...`);
+//         await axios.post(
+//           `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PLACE_BID}`,
+//           {
+//             project_id: project.id,
+//             bidder_id: bidderId,
+//             amount: bidAmount,
+//             period: 5,
+//             description: proposal,
+//             milestone_percentage: 100,
+//           },
+//           {
+//             headers: {
+//               'Authorization': `Bearer ${token}`,
+//             },
+//           }
+//         );
+
+//         console.log(`Bid placed successfully for project ${project.id}`);
+
+//         // Save bid history
+//         await saveBidHistory(project.id, bidderId, bidAmount, 5, proposal);
+//                 // Add a 20-second delay before placing the next bid
+//         console.log(`Waiting 20 seconds before placing the next bid...`);
+//         await delay(20000); // 20-second delay
+//       } catch (err) {
+//         console.error(`Error processing project ${project.id}:`, err);
+//       }
+//     }
+
+//     setCooldown(true);
+//     setTimeout(() => {
+//       setCooldown(false);
+//       console.log('Cooldown ended. Auto-bid is now active.');
+//     }, 2 * 60 * 1000); // 2-minute cooldown
+//   } catch (err) {
+//     console.error('Error fetching bidder_id or placing bids:', err);
+//   }
+// }, [projects, token, cooldown, getUserInfo]);
+
+
 const autoPlaceBids = useCallback(async () => {
   if (cooldown) {
     console.log('Cooldown active. Skipping auto-bid.');
@@ -312,7 +413,7 @@ const autoPlaceBids = useCallback(async () => {
         }
 
         console.log(`Generating proposal for project ${project.id}...`);
-        const response = await axios.post('http://localhost:5000/generate-proposal', {
+        const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
           id: project.id,
           title: project.title,
           description: project.description || 'No description available',
@@ -327,7 +428,7 @@ const autoPlaceBids = useCallback(async () => {
         console.log(`Proposal generated for project ${project.id}:`, proposal);
 
         console.log(`Placing bid for project ${project.id} with amount ${bidAmount}...`);
-        await axios.post(
+        const bidResponse = await axios.post(
           `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PLACE_BID}`,
           {
             project_id: project.id,
@@ -347,7 +448,11 @@ const autoPlaceBids = useCallback(async () => {
         console.log(`Bid placed successfully for project ${project.id}`);
 
         // Save bid history
-        await saveBidHistory(project.id, bidderId, bidAmount, 5, proposal);
+        await saveBidHistory(bidResponse.data);
+
+        // Add a 20-second delay before placing the next bid
+        console.log(`Waiting 20 seconds before placing the next bid...`);
+        await delay(20000); // 20-second delay
       } catch (err) {
         console.error(`Error processing project ${project.id}:`, err);
       }
@@ -362,6 +467,8 @@ const autoPlaceBids = useCallback(async () => {
     console.error('Error fetching bidder_id or placing bids:', err);
   }
 }, [projects, token, cooldown, getUserInfo]);
+
+
 
 const calculateBidAmount = (project) => {
   const { type, budget } = project;
@@ -405,7 +512,7 @@ const calculateBidAmount = (project) => {
 
 const saveBidHistory = async (projectId, bidderId, amount, period, description) => {
   try {
-    const response = await axios.post('http://localhost:5000/save-bid-history', {
+    const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
       project_id: projectId,
       bidder_id: bidderId,
       amount,
