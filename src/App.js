@@ -19,8 +19,10 @@ import ProposalModal from './components/ProposalModal';
 const MainApp = () => {
   // Firebase authenticated user
   const { user: fbUser, logout } = useFirebaseAuth();
+  // const { , setCooldown } = useState(false);
   // Multi-account token switching (Freelancer API credentials)
   const { currentUser, availableUsers, switchUser } = useAuth();
+  const [autoBidEnabled, setAutoBidEnabled] = useState(false); // AutoBid is off by default
   
   const {
     projects,
@@ -32,15 +34,42 @@ const MainApp = () => {
     retryFetch,
     lastFetchTime,
     newCount,
+    autoPlaceBids,
     oldCount
   } = useFreelancerAPI();
 
   const { modalState, closeModal } = useModal();
   const { placeBid } = useBidding();
 
+  // Automatically fetch projects every minute
   useEffect(() => {
-    loadProjectsFromStorage();
-  }, [loadProjectsFromStorage]);
+    const interval = setInterval(() => {
+      if (!loading) {
+        fetchRecentProjects();
+      }
+    }, 6000); // 60,000 ms = 1 minute
+
+    return () => clearInterval(interval);
+  }, [fetchRecentProjects, loading]);
+
+  // Automatically place bids when AutoBid is enabled and cooldown is false
+  useEffect(() => {
+    if (autoBidEnabled && projects.length > 0) {
+      autoPlaceBids();
+    }
+  }, [autoBidEnabled, projects, autoPlaceBids]);
+
+
+  // // Automatically place bids after fetching projects
+  // useEffect(() => {
+  //   if (projects.length > 0) {
+  //     autoPlaceBids();
+  //   }
+  // }, [projects, autoPlaceBids]);
+
+  // useEffect(() => {
+  //   loadProjectsFromStorage();
+  // }, [loadProjectsFromStorage]);
 
   const handleFetchProjects = async () => {
     try {
@@ -91,6 +120,18 @@ const MainApp = () => {
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
       }}>
         <h1 style={{ margin: 0, color: '#495057' }}>🤖 Freelancer AutoBidder</h1>
+
+                 {/* Toggle Button for AutoBid */}
+      <div className="toggle-container">
+        <label>
+          <input
+            type="checkbox"
+            checked={autoBidEnabled}
+            onChange={() => setAutoBidEnabled((prev) => !prev)}
+          />
+          Enable AutoBid
+        </label>
+      </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <span style={{ color: '#6c757d' }}>
             Welcome, <strong>{fbUser?.displayName || fbUser?.email}</strong>!
@@ -135,7 +176,9 @@ const MainApp = () => {
             Logout
           </button>
         </div>
+            
       </header>
+
 
       {/* Your existing content */}
       <div className="main-content" style={{ padding: '20px' }}>

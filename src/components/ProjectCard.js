@@ -117,17 +117,21 @@ const ProjectCard = ({ project }) => {
     status = 'N/A',
     seo_url = null,
     currency = {},
-    description = null,
+    description ,
     preview_description = null,
     submitdate = null,
     type = 'N/A',
     bidperiod = 'N/A',
-    budget = {},
-    bid_stats = {}
+    budget ,
+    bid_stats = {},
+    location ,
+    users,
   } = project;
 
   // Use preview_description if description is null, or fallback to default
   const projectDescription = description || preview_description || 'No description available';
+
+    const clientReview = users?.reputation?.entire_history?.overall || 'No reviews yet';
 
   // Format currency information
   const currencyCode = currency?.code || 'USD';
@@ -236,6 +240,9 @@ const ProjectCard = ({ project }) => {
         <p className="text-gray-600 text-sm mb-4 leading-relaxed">
           {truncatedDescription}
         </p>
+        
+
+        
 
         {/* Project Details Grid */}
         <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
@@ -267,6 +274,13 @@ const ProjectCard = ({ project }) => {
               {currencyCode} ({currencySign}) - {currencyName}
             </span>
           </div>
+        </div>
+           {/* Client Review */}
+        <div className="bg-gray-50 p-2 rounded-lg mb-4">
+          <span className="text-gray-500 block text-xs">Client Review</span>
+          <span className="font-medium text-gray-900 text-sm">
+            {typeof clientReview === 'number' ? `${clientReview} / 5` : clientReview}
+          </span>
         </div>
       </div>
 
@@ -385,16 +399,17 @@ const ProjectCard = ({ project }) => {
       </div>
 
       {/* Proposal Modal */}
-      <ProposalModal
-        open={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleSubmitBid}
-        projectId={id}
-        projectTitle={title}
-        budgetDisplay={budgetDisplay}
-        initialAmount={budgetMin || 250}
-        initialPeriod={5}
-      />
+<ProposalModal
+  open={isModalOpen}
+  onClose={() => setIsModalOpen(false)}
+  onSubmit={handleSubmitBid}
+  projectId={project.id}
+  projectTitle={project.title}
+  projectDescription={project.description || project.preview_description || 'No description available'}
+  budgetDisplay={budgetDisplay}
+  initialAmount={budgetMin || 250}
+  initialPeriod={5}
+/>
     </div>
   );
 };
