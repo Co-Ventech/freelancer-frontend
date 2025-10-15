@@ -153,7 +153,7 @@ const MainApp = () => {
               }}
             >
               {/* Default option */}
-              <option value="DEFAULT">Default</option>
+              <option value="DEFAULT">Zubair</option>
               {availableUsers && Object.entries(availableUsers)
                 .filter(([key]) => key !== 'DEFAULT')
                 .map(([key, info]) => (
