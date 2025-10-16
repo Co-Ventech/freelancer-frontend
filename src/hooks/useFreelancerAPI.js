@@ -98,6 +98,7 @@ export const useFreelancerAPI = ({ bidderType }) => {
         user_responsiveness: true, // Include user responsiveness
         user_portfolio_details: true, // Include user portfolio details
         user_reputation: true, // Include user reputation
+        'languages[]': 'en'
 
       };
       const queryString = buildQueryParams(params);
@@ -145,7 +146,6 @@ export const useFreelancerAPI = ({ bidderType }) => {
 
     try {
       const userId = await getUserInfo();
-      console.log(userId)
       if (!userId) {
         throw new Error('User ID not found');
       }
