@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
-const STORAGE_KEY = 'NOTIFICATIONS_V1';
+const STORAGE_PREFIX = 'NOTIFICATIONS_V1';
 
 const NotificationContext = createContext(null);
 
@@ -11,34 +12,39 @@ export const useNotifications = () => {
 };
 
 export const NotificationProvider = ({ children }) => {
+  const { currentUser } = useAuth();
+  const storageKey = useMemo(() => `${STORAGE_PREFIX}:${currentUser || 'DEFAULT'}`, [currentUser]);
   const shouldPersist = useCallback((n) => {
     if (!n || n.type !== 'success') return false;
     if (n.persist === true || n.category === 'bid_success') return true;
     return n.title === 'Bid placed' || n.title === 'AutoBid completed';
   }, []);
 
-  const [items, setItems] = useState(() => {
+  const [items, setItems] = useState([]);
+
+  // Load items whenever the account changes
+  useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(storageKey);
       const parsed = raw ? JSON.parse(raw) : [];
-      // Only hydrate persisted-eligible notifications
-      return Array.isArray(parsed) ? parsed.filter((n) => {
+      const hydrated = Array.isArray(parsed) ? parsed.filter((n) => {
         if (!n.createdAt) n.createdAt = Date.now();
-        return n && (n.type === 'success') && (n.persist === true || n.category === 'bid_success' || n.title === 'Bid placed' || n.title === 'AutoBid completed');
+        return shouldPersist(n);
       }) : [];
+      setItems(hydrated);
     } catch {
-      return [];
+      setItems([]);
     }
-  });
+  }, [storageKey, shouldPersist]);
 
   useEffect(() => {
     try {
       const toStore = items.filter(shouldPersist);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+      localStorage.setItem(storageKey, JSON.stringify(toStore));
     } catch {
       // ignore storage failures
     }
-  }, [items, shouldPersist]);
+  }, [items, shouldPersist, storageKey]);
 
   const add = useCallback((notif) => {
     const id = notif.id || Math.random().toString(36).slice(2);
