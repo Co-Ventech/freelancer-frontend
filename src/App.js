@@ -21,7 +21,7 @@ const MainApp = () => {
   const { user: fbUser, logout } = useFirebaseAuth();
   // const { , setCooldown } = useState(false);
   // Multi-account token switching (Freelancer API credentials)
-  const { currentUser, availableUsers, switchUser } = useAuth();
+  const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
   const [autoBidEnabled, setAutoBidEnabled] = useState(false); // AutoBid is off by default
   
   const {
@@ -35,10 +35,12 @@ const MainApp = () => {
     lastFetchTime,
     newCount,
     autoPlaceBids,
-    oldCount
-  } = useFreelancerAPI();
+    oldCount,
+
+  } = useFreelancerAPI({bidderType: autoBidEnabled ? 'auto' : 'manual' });
 
   const { modalState, closeModal } = useModal();
+
   const { placeBid } = useBidding();
 
   // Automatically fetch projects every minute
@@ -94,7 +96,7 @@ const MainApp = () => {
 };
   const handleSubmitBid = async ({ amount, period, description }) => {
     const { projectId } = modalState.data;
-    const result = await placeBid(projectId, amount, period, description);
+    const result = await placeBid(projectId, amount, period, description, bidderId);
     
     if (result?.success) {
       console.log('Bid response:', result.data);
