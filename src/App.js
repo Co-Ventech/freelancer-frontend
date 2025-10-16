@@ -199,6 +199,12 @@ const MainApp = () => {
             </div>
           )}
         </div>
+
+        {error && (
+  <div style={{ color: 'red', marginBottom: '10px' }}>
+    <strong>Error:</strong> {error}
+  </div>
+)}
         
         <FetchButton
           onFetch={fetchRecentProjects}
