@@ -12,35 +12,35 @@ export const useFreelancerAPI = () => {
   const [cooldown, setCooldown] = useState(false); // Cooldown state
   const [skillsCache, setSkillsCache] = useState({});
 
-const handleApiError = (error) => {
-  if (error.response) {
-    // Server responded with a status code outside the 2xx range
-    const status = error.response.status;
-    const data = error.response.data;
+  const handleApiError = (error) => {
+    if (error.response) {
+      // Server responded with a status code outside the 2xx range
+      const status = error.response.status;
+      const data = error.response.data;
 
-    if (status === 400) {
-      return data.message || 'Bad Request. Please check your input.';
-    } else if (status === 401) {
-      return 'Unauthorized. Please log in again.';
-    } else if (status === 403) {
-      return 'Forbidden. You do not have permission to perform this action.';
-    } else if (status === 404) {
-      return 'Resource not found. Please try again.';
-    } else if (status === 429) {
-      return 'Too many requests. Please wait and try again later.';
-    } else if (status >= 500) {
-      return 'Server error. Please try again later.';
+      if (status === 400) {
+        return data.message || 'Bad Request. Please check your input.';
+      } else if (status === 401) {
+        return 'Unauthorized. Please log in again.';
+      } else if (status === 403) {
+        return 'Forbidden. You do not have permission to perform this action.';
+      } else if (status === 404) {
+        return 'Resource not found. Please try again.';
+      } else if (status === 429) {
+        return 'Too many requests. Please wait and try again later.';
+      } else if (status >= 500) {
+        return 'Server error. Please try again later.';
+      } else {
+        return data.message || 'An unexpected error occurred. Please try again.';
+      }
+    } else if (error.request) {
+      // No response received from the server
+      return 'Network error. Please check your internet connection.';
     } else {
-      return data.message || 'An unexpected error occurred. Please try again.';
+      // Error occurred while setting up the request
+      return error.message || 'An unexpected error occurred.';
     }
-  } else if (error.request) {
-    // No response received from the server
-    return 'Network error. Please check your internet connection.';
-  } else {
-    // Error occurred while setting up the request
-    return error.message || 'An unexpected error occurred.';
-  }
-};
+  };
 
   const getUserInfo = useCallback(async () => {
     try {
@@ -98,6 +98,7 @@ const handleApiError = (error) => {
         user_responsiveness: true, // Include user responsiveness
         user_portfolio_details: true, // Include user portfolio details
         user_reputation: true, // Include user reputation
+        'languages[]': 'en'
 
       };
       const queryString = buildQueryParams(params);
@@ -152,9 +153,9 @@ const handleApiError = (error) => {
       const skillIds = await getUserSkills(userId);
       let projects = await getProjectsBySkills(skillIds); // Change `const` to `let`
 
-    // Filter projects based on the conditions
-    projects = projects.filter((project) => {
-      const { currency, budget, location, NDA } = project;
+      // Filter projects based on the conditions
+      projects = projects.filter((project) => {
+        const { currency, budget, location, NDA } = project;
 
         // Exclude projects with country = "India"
         if (location?.country === 'India') {
@@ -166,37 +167,37 @@ const handleApiError = (error) => {
           return false;
         }
 
-      // Exclude projects with hourly rate minimum <= 5
-      if (budget?.minimum && budget.minimum <= 5) {
-        return false;
-      }
+        // Exclude projects with hourly rate minimum <= 5
+        if (budget?.minimum && budget.minimum <= 5) {
+          return false;
+        }
 
-       // Exclude projects with NDA = true
-      if (NDA === true) {
-        console.log(`Project ${project.id} is an NDA project. Skipping.`);
-        return false;
-      }
+        // Exclude projects with NDA = true
+        if (NDA === true) {
+          console.log(`Project ${project.id} is an NDA project. Skipping.`);
+          return false;
+        }
 
         return true;
       });
 
-    setProjects(projects);
-    console.log(`Fetched ${projects.length} projects for user ${currentUser}`);
-  } catch (err) {
-        const errorMessage = handleApiError(err);
-    setError(errorMessage);
-    console.error('Failed to fetch recent projects:', err);
-  } finally {
-    setLoading(false);
-  }
-}, [currentUser, getUserInfo, getUserSkills, getProjectsBySkills]);
+      setProjects(projects);
+      console.log(`Fetched ${projects.length} projects for user ${currentUser}`);
+    } catch (err) {
+      const errorMessage = handleApiError(err);
+      setError(errorMessage);
+      console.error('Failed to fetch recent projects:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser, getUserInfo, getUserSkills, getProjectsBySkills]);
 
 
-const autoPlaceBids = useCallback(async () => {
-  if (cooldown) {
-    console.log('Cooldown active. Skipping auto-bid.');
-    return;
-  }
+  const autoPlaceBids = useCallback(async () => {
+    if (cooldown) {
+      console.log('Cooldown active. Skipping auto-bid.');
+      return;
+    }
 
     const nowUnix = Math.floor(Date.now() / 1000);
     const recentProjects = projects.filter((project) => {
@@ -272,25 +273,25 @@ const autoPlaceBids = useCallback(async () => {
           // Save bid history
           await saveBidHistory(bidResponse.data);
 
-        // Add a 30-second delay before placing the next bid
-        console.log(`Waiting 30 seconds before placing the next bid...`);
-        await delay(30000); // 30-second delay
-      } catch (err) {
-         const errorMessage = handleApiError(err);
-        console.error(`Error processing project ${project.id}:`, err);
+          // Add a 30-second delay before placing the next bid
+          console.log(`Waiting 30 seconds before placing the next bid...`);
+          await delay(30000); // 30-second delay
+        } catch (err) {
+          const errorMessage = handleApiError(err);
+          console.error(`Error processing project ${project.id}:`, err);
+        }
       }
-    }
 
-    setCooldown(true);
-    setTimeout(() => {
-      setCooldown(false);
-      console.log('Cooldown ended. Auto-bid is now active.');
-    }, 5 * 60 * 1000); // 2-minute cooldown
-  } catch (err) {
-     const errorMessage = handleApiError(err);
-    console.error('Error fetching bidder_id or placing bids:', err);
-  }
-}, [projects, token, cooldown, getUserInfo]);
+      setCooldown(true);
+      setTimeout(() => {
+        setCooldown(false);
+        console.log('Cooldown ended. Auto-bid is now active.');
+      }, 5 * 60 * 1000); // 2-minute cooldown
+    } catch (err) {
+      const errorMessage = handleApiError(err);
+      console.error('Error fetching bidder_id or placing bids:', err);
+    }
+  }, [projects, token, cooldown, getUserInfo]);
 
 
 
@@ -307,28 +308,28 @@ const autoPlaceBids = useCallback(async () => {
 
     console.log(`Calculating bid amount for project ${project.id}:`, { type, minBudget, maxBudget });
 
-  if (type === 'hourly') {
-    // Hourly Projects
-    if (minBudget > 10) {
-      console.log(`Project ${project.id} is hourly with rate > $10/hour. Bidding minimum: ${minBudget}`);
-      return minBudget; // Bid the minimum amount for rates > $10/hour
-    } else {
-      console.log(`Project ${project.id} is hourly with rate ≤ $10/hour. Bidding maximum: ${maxBudget}`);
-      return maxBudget; // Bid the maximum amount for rates ≤ $10/hour
+    if (type === 'hourly') {
+      // Hourly Projects
+      if (minBudget > 10) {
+        console.log(`Project ${project.id} is hourly with rate > $10/hour. Bidding minimum: ${minBudget}`);
+        return minBudget; // Bid the minimum amount for rates > $10/hour
+      } else {
+        console.log(`Project ${project.id} is hourly with rate ≤ $10/hour. Bidding maximum: ${maxBudget}`);
+        return maxBudget; // Bid the maximum amount for rates ≤ $10/hour
+      }
+    } else if (type === 'fixed') {
+      // Fixed-Price Projects
+      if (minBudget >= 200 && maxBudget <= 900) {
+        console.log(`Project ${project.id} is fixed-price with budget between $200 and $500. Bidding maximum: ${maxBudget}`);
+        return maxBudget; // Bid the maximum amount for budgets between $200 and $500
+      } else if (maxBudget > 1000) {
+        console.log(`Project ${project.id} is fixed-price with budget > $1,000. Bidding minimum: ${minBudget}`);
+        return minBudget; // Bid the minimum amount for budgets > $1,000
+      } else if (maxBudget < 200) {
+        console.log(`Project ${project.id} is fixed-price with budget < $200. Skipping.`);
+        return null; // Skip projects with budgets < $200
+      }
     }
-  } else if (type === 'fixed') {
-    // Fixed-Price Projects
-    if (minBudget >= 200 && maxBudget <= 900) {
-      console.log(`Project ${project.id} is fixed-price with budget between $200 and $500. Bidding maximum: ${maxBudget}`);
-      return maxBudget; // Bid the maximum amount for budgets between $200 and $500
-    } else if (maxBudget > 1000) {
-      console.log(`Project ${project.id} is fixed-price with budget > $1,000. Bidding minimum: ${minBudget}`);
-      return minBudget; // Bid the minimum amount for budgets > $1,000
-    } else if (maxBudget < 200) {
-      console.log(`Project ${project.id} is fixed-price with budget < $200. Skipping.`);
-      return null; // Skip projects with budgets < $200
-    }
-  }
 
     console.log(`Project ${project.id} does not meet any criteria. Skipping.`);
     return null; // Skip projects that do not meet any criteria
