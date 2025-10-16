@@ -10,6 +10,7 @@ import { useBidding } from './hooks/useBidding';
 import { useAuth } from './contexts/AuthContext';
 import { useFirebaseAuth } from './contexts/FirebaseAuthContext';
 import ProposalModal from './components/ProposalModal';
+import NotificationBell from './components/NotificationBell';
 
 
 
@@ -135,6 +136,7 @@ const MainApp = () => {
         </label>
       </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <NotificationBell />
           <span style={{ color: '#6c757d' }}>
             Welcome, <strong>{fbUser?.displayName || fbUser?.email}</strong>!
           </span>

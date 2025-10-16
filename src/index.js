@@ -23,6 +23,8 @@ import './index.css';
 import App from './App';
 import { ModalProvider } from './contexts/ModalContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { FirebaseAuthProvider } from './contexts/FirebaseAuthContext';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -31,7 +33,11 @@ root.render(
     <FirebaseAuthProvider>
       <AuthProvider>
         <ModalProvider>
-          <App />
+          <ToastProvider>
+            <NotificationProvider>
+              <App />
+            </NotificationProvider>
+          </ToastProvider>
         </ModalProvider>
       </AuthProvider>
     </FirebaseAuthProvider>
