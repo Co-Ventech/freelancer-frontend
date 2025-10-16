@@ -1,11 +1,15 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import { API_CONFIG, buildQueryParams, STORAGE_KEYS } from '../utils/apiUtils';
+import { useToast } from '../contexts/ToastContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getUnixTimestamp } from '../utils/dateUtils';
 
 export const useFreelancerAPI = () => {
   const { token, currentUser } = useAuth();
+  const { showSuccess, showError, showInfo } = useToast();
+  const { addSuccess: notifySuccess, addError: notifyError, addInfo: notifyInfo } = useNotifications();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -217,6 +221,8 @@ export const useFreelancerAPI = () => {
 
     if (recentProjects.length === 0) {
       console.log('No recent projects to bid on.');
+      showInfo?.('AutoBid: No new recent projects to bid on');
+      notifyInfo('AutoBid', 'No new recent projects to bid on');
       return;
     }
 
@@ -269,6 +275,8 @@ export const useFreelancerAPI = () => {
           );
 
           console.log(`Bid placed successfully for project ${project.id}`);
+          showSuccess(`AutoBid: Bid placed for #${project.id}`);
+          notifySuccess('Bid placed', `Project #${project.id} bid submitted successfully`);
 
           // Save bid history
           await saveBidHistory(bidResponse.data);
@@ -279,6 +287,8 @@ export const useFreelancerAPI = () => {
         } catch (err) {
           const errorMessage = handleApiError(err);
           console.error(`Error processing project ${project.id}:`, err);
+          showError(`AutoBid error on #${project.id}: ${errorMessage}`);
+          notifyError('Bid failed', `#${project.id}: ${errorMessage}`);
         }
       }
 
@@ -287,9 +297,13 @@ export const useFreelancerAPI = () => {
         setCooldown(false);
         console.log('Cooldown ended. Auto-bid is now active.');
       }, 5 * 60 * 1000); // 2-minute cooldown
+      showSuccess('AutoBid completed successfully');
+      notifySuccess('AutoBid completed', 'Auto-bidding run completed successfully');
     } catch (err) {
       const errorMessage = handleApiError(err);
       console.error('Error fetching bidder_id or placing bids:', err);
+      showError(`AutoBid failed: ${errorMessage}`);
+      notifyError('AutoBid failed', errorMessage);
     }
   }, [projects, token, cooldown, getUserInfo]);
 
