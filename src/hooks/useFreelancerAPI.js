@@ -274,9 +274,10 @@ export const useFreelancerAPI = ({ bidderType }) => {
           );
 
           console.log(`Bid placed successfully for project ${project.id}`);
-          showSuccess(`AutoBid: Bid placed for #${project.id}`);
-          notifySuccess('Bid placed', `Project #${project.id} bid submitted successfully`);
-
+          const titleText = (project?.title || '').trim();
+          const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
+          showSuccess(`AutoBid: Bid placed for ${pretty}`);
+          notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`);
           // Save bid history
           await saveBidHistory({ ...bidResponse.data, bidderType });
 
