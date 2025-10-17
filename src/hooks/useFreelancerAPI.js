@@ -275,7 +275,9 @@ export const useFreelancerAPI = ({ bidderType }) => {
 
           console.log(`Bid placed successfully for project ${project.id}`);
           showSuccess(`AutoBid: Bid placed for #${project.id}`);
-          notifySuccess('Bid placed', `Project #${project.id} bid submitted successfully`);
+          const titleText = (project?.title || '').trim();
+          const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
+          notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`);
 
           // Save bid history
           await saveBidHistory({ ...bidResponse.data, bidderType });
@@ -287,7 +289,9 @@ export const useFreelancerAPI = ({ bidderType }) => {
           const errorMessage = handleApiError(err);
           console.error(`Error processing project ${project.id}:`, err);
           showError(`AutoBid error on #${project.id}: ${errorMessage}`);
-          notifyError('Bid failed', `#${project.id}: ${errorMessage}`);
+          const titleTextErr = (project?.title || '').trim();
+          const prettyErr = titleTextErr ? `#${project.id} — ${titleTextErr}` : `#${project.id}`;
+          notifyError('Bid failed', `${prettyErr}: ${errorMessage}`);
         }
       }
 
