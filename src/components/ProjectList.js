@@ -105,10 +105,10 @@ const ProjectList = ({ projects, loading, error, lastFetchTime, newCount, oldCou
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Recent Projects</h2>
-          <p className="text-sm text-gray-500 mt-1">
+          {/* <p className="text-sm text-gray-500 mt-1">
             Last fetch: <span className="font-medium text-gray-700">{lastFetchAbsolutePK}</span>
             {' '}(<span className="text-gray-600">{lastFetchRelative}</span>)
-          </p>
+          </p> */}
         </div>
         <div className="flex items-center gap-2">
           <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
