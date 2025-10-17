@@ -73,7 +73,12 @@ export const API_CONFIG = {
     PLACE_BID: '/projects/0.1/bids/'
   },
   DEFAULT_PARAMS: {
-    limit: 20,
+    // limit: 20,
+    //   user_details: true,
+    // user_responsiveness: true,
+    // user_portfolio_details: true,
+    // user_reputation: true,
+    // 'project_types[]': 'hourly',
     // sort_field: 'submitdate',
     // sort_order: 'desc',
     // 'project_types[]': 'fixed',

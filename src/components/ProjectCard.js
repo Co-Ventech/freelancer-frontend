@@ -1,114 +1,16 @@
-// import React from 'react';
-// import { formatUnixToPakistanTime, formatCurrency } from '../utils/dateUtils';
-// import { useBidding } from '../hooks/useBidding';
-// import { bidService } from '../services/bidService';
-
-// /**
-//  * ProjectCard component - renders a single project in a card format
-//  */
-// const ProjectCard = ({ project }) => {
-//   // Extract project data with fallbacks
-//   const {
-//     title = 'Untitled Project',
-//     description = 'No description available',
-//     budget = {},
-//     submitdate,
-//     bid_stats = {},
-//     id
-//   } = project;
-
-//   // Format budget
-//   const budgetMin = budget.minimum || 0;
-//   const budgetMax = budget.maximum || 0;
-//   const currency = budget.currency?.code || 'USD';
-  
-//   const budgetDisplay = budgetMax > budgetMin 
-//     ? `${formatCurrency(budgetMin, currency)} - ${formatCurrency(budgetMax, currency)}`
-//     : formatCurrency(budgetMin || budgetMax, currency);
-
-//   // Format submit date
-//   const formattedDate = submitdate ? formatUnixToPakistanTime(submitdate) : 'Date not available';
-
-//   // Get bid count
-//   const bidCount = bid_stats.bid_count || 0;
-
-//   // Truncate description
-//   const truncatedDescription = (description && description.length > 150)
-//     ? `${description.substring(0, 150)}...` 
-//     : (description || 'No description available');
-
-//   return (
-//     <div className="card p-6 h-full flex flex-col">
-//       {/* Header */}
-//       <div className="flex-1">
-//         <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2 leading-tight">
-//           {title}
-//         </h3>
-        
-//         {/* Description */}
-//         <p className="text-gray-600 text-sm mb-4 leading-relaxed">
-//           {truncatedDescription}
-//         </p>
-//       </div>
-
-//       {/* Footer */}
-//       <div className="mt-auto space-y-3">
-//         {/* Budget */}
-//         <div className="flex items-center justify-between">
-//           <span className="text-xs text-gray-500 uppercase tracking-wide">Budget</span>
-//           <span className="text-lg font-bold text-green-600">{budgetDisplay}</span>
-//         </div>
-
-//         {/* Stats */}
-//         <div className="flex items-center justify-between text-sm">
-//           <div className="flex items-center space-x-4">
-//             <div className="flex items-center space-x-1">
-//               <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-//                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-//               </svg>
-//               <span className="text-gray-600">{bidCount} bids</span>
-//             </div>
-//           </div>
-          
-//           <div className="text-xs text-gray-500">
-//             ID: {id}
-//           </div>
-//         </div>
-
-//         {/* Date */}
-//         <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-//           <div className="flex items-center space-x-1">
-//             <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-//               <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-//             </svg>
-//             <span className="text-xs text-gray-500">{formattedDate}</span>
-//           </div>
-          
-//           {/* Future: Bid Now button */}
-//           <button className="btn-secondary text-xs py-1 px-3" disabled>
-//             Bid Now
-//           </button>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default ProjectCard;
-
-
 import React, { useState } from 'react';
 import { formatUnixToPakistanTime, formatCurrency } from '../utils/dateUtils';
 import { useBidding } from '../hooks/useBidding';
 import bidService from '../services/bidService';
 import { isProjectNew } from '../utils/apiUtils';
 import ProposalModal from './ProposalModal';
+import { useFreelancerAPI } from '../hooks/useFreelancerAPI';
 /**
  * ProjectCard component - renders a single project in a card format
  */
-const ProjectCard = ({ project }) => {
+const ProjectCard = ({ project, bidderType }) => {
   const { loading, error, success, placeBid, clearError } = useBidding();
-  const [showBidForm, setShowBidForm] = useState(false);
+  const { calculateBidAmount } = useFreelancerAPI({bidderType}); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   // Extract project data with fallbacks based on the actual API response structure
   const {
@@ -117,17 +19,21 @@ const ProjectCard = ({ project }) => {
     status = 'N/A',
     seo_url = null,
     currency = {},
-    description = null,
+    description ,
     preview_description = null,
     submitdate = null,
     type = 'N/A',
     bidperiod = 'N/A',
-    budget = {},
-    bid_stats = {}
+    budget ,
+    bid_stats = {},
+    location ,
+    users,
   } = project;
 
   // Use preview_description if description is null, or fallback to default
   const projectDescription = description || preview_description || 'No description available';
+
+    const clientReview = users?.reputation?.entire_history?.overall || 'No reviews yet';
 
   // Format currency information
   const currencyCode = currency?.code || 'USD';
@@ -172,17 +78,24 @@ const ProjectCard = ({ project }) => {
   };
   
     // Handle bid submission from modal
-    const handleSubmitBid = async ({ amount, period, description }) => {
-      const result = await placeBid(id, amount, period, description);
-      if (result?.success) {
-        console.log('Bid response:', result.data);
-        alert('Bid placed successfully!');
-      } else if (result?.message) {
-        throw new Error(result.message);
-      } else {
-        throw new Error('Failed to place bid');
-      }
-    };
+  const handleSubmitBid = async ({ amount, period, description }) => {
+  try {
+    const result = await placeBid(id, amount, period, description);
+
+    if (result?.success) {
+      console.log('Bid response:', result.data);
+      alert('Bid placed successfully!'); // Trigger alert on success
+    } else if (result?.message) {
+      console.error('Bid error:', result.message);
+      alert(`Error: ${result.message}`); // Show error message in alert
+    } else {
+      throw new Error('Failed to place bid');
+    }
+  } catch (error) {
+    console.error('Error in handleSubmitBid:', error);
+    alert(`Error: ${error.message || 'An unexpected error occurred'}`);
+  }
+};
   // Handle bid placement
   // const handlePlaceBid = async () => {
   //   if (hasAlreadyBid) {
@@ -236,6 +149,9 @@ const ProjectCard = ({ project }) => {
         <p className="text-gray-600 text-sm mb-4 leading-relaxed">
           {truncatedDescription}
         </p>
+        
+
+        
 
         {/* Project Details Grid */}
         <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
@@ -267,6 +183,13 @@ const ProjectCard = ({ project }) => {
               {currencyCode} ({currencySign}) - {currencyName}
             </span>
           </div>
+        </div>
+           {/* Client Review */}
+        <div className="bg-gray-50 p-2 rounded-lg mb-4">
+          <span className="text-gray-500 block text-xs">Client Review</span>
+          <span className="font-medium text-gray-900 text-sm">
+            {typeof clientReview === 'number' ? `${clientReview} / 5` : clientReview}
+          </span>
         </div>
       </div>
 
@@ -389,11 +312,12 @@ const ProjectCard = ({ project }) => {
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmitBid}
-        projectId={id}
-        projectTitle={title}
-        budgetDisplay={budgetDisplay}
-        initialAmount={budgetMin || 250}
-        initialPeriod={5}
+        projectId={project.id}
+        projectTitle={project.title}
+        projectDescription={project.description}
+        budget={project.budget}
+        type={project.type}
+        calculateBidAmount={calculateBidAmount}
       />
     </div>
   );

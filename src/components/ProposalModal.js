@@ -1,25 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PROPOSAL_STORAGE_PREFIX } from '../utils/apiUtils';
-
-// const defaultProposal = (title) =>
-//  `Hello,\n\nI am excited to submit my proposal for "${title}".\n\nI have 7 years of experience delivering high-quality software solutions, including custom web and mobile applications for international clients. My expertise covers the full development cycle from requirements to deployment and ongoing maintenance.\n\nFor your project "${title}", I will leverage my experience to:\n- Analyze your requirements in detail\n- Communicate proactively and transparently\n- Deliver robust, scalable solutions on time and within budget\n\nI'm passionate about this domain and eager to contribute to your success. Please let me know a convenient time to chat about your specific goals!\n\nBest regards`
-
-const defaultProposal = (title) => `Hey, how are you?
-Yes, I can help you design and develop a modern, visually stunning, and fully functional platform that delivers an exceptional user experience. Whether it’s UI/UX design, full-stack web development, or CMS-based solutions, I’ll ensure everything is pixel-perfect, mobile responsive, fast-loading, and aligned with your business goals.
-I’m new to Freelancer but bring over 7+ years of professional experience working with modern technologies including PHP, Laravel, Node.js, React, Next.js, Firebase, MySQL, WordPress, Shopify, Figma. I’ve built scalable systems, high-conversion landing pages, and dynamic dashboards for both startups and enterprises.
-You can review a few of my past work:
-https://app.recruitinn.ai
-https://skillbuilder.online
-https://co-ventech.com
-https://app.co-ventech.com
-https://www.starmarketingonline.com/
-https://teamwear.design/
-https://visanetic.com/
-https://drivefds.com/
-https://gfsbuilders.com.pk/
-https://bachatt.com/
-Looking forward to creating something exceptional, user-friendly, and performance-driven for your platform.
-Thank you.\n\nBest regards,\nAhsan`
+import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 const ProposalModal = ({
   open,
@@ -27,36 +9,71 @@ const ProposalModal = ({
   onSubmit,
   projectId,
   projectTitle,
+  projectDescription,
   budgetDisplay,
-  initialAmount = 250,
-  initialPeriod = 5
+  type,
+  budget,
+  calculateBidAmount,
+  initialPeriod = 5,
 }) => {
   const storageKey = useMemo(() => `${PROPOSAL_STORAGE_PREFIX}${projectId}`, [projectId]);
-  const [amount, setAmount] = useState(initialAmount);
+  const [amount, setAmount] = useState(0);
   const [period, setPeriod] = useState(initialPeriod);
-  const [proposal, setProposal] = useState(defaultProposal(projectTitle));
+  const [proposal, setProposal] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [loadingProposal, setLoadingProposal] = useState(false);
   const [error, setError] = useState(null);
+  const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
 
-  // Load saved draft on open
+  // Calculate bid amount when modal opens
   useEffect(() => {
     if (!open) return;
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.proposal) setProposal(parsed.proposal);
-        if (parsed?.amount) setAmount(parsed.amount);
-        if (parsed?.period) setPeriod(parsed.period);
-      } else {
-        setProposal(defaultProposal(projectTitle));
-        setAmount(initialAmount);
-        setPeriod(initialPeriod);
-      }
-    } catch {
-      // ignore
+
+    console.log('Received budget data:', budget); // Debugging log
+
+    const calculatedAmount = calculateBidAmount({ type, budget });
+
+    if (calculatedAmount === null) {
+      setError('This project does not meet the bidding criteria,you can place bid manually.');
+    } else {
+      setError(null);
+      setAmount(calculatedAmount);
     }
-  }, [open, storageKey, projectTitle, initialAmount, initialPeriod]);
+  }, [open, type, budget, calculateBidAmount]);
+  
+  // Fetch dynamic proposal when modal opens
+  useEffect(() => {
+    if (!open) return;
+
+   const fetchProposal = async () => {
+  setLoadingProposal(true);
+  setError(null);
+
+  try {
+    console.log('Sending API request:', {
+      id: projectId,
+      title: projectTitle,
+      description: projectDescription, 
+    });
+
+    const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
+      id: projectId,
+      title: projectTitle,
+      description: projectDescription,
+    });
+
+    setProposal(response.data.proposal || 'Failed to generate proposal.');
+  } catch (err) {
+    console.error('Error generating proposal:', err);
+    setProposal('Failed to generate proposal.');
+    setError('Could not generate proposal. Please try again.');
+  } finally {
+    setLoadingProposal(false);
+  }
+};
+
+    fetchProposal();
+  }, [open, projectId, projectTitle, projectDescription]);
 
   // Persist on change (debounced light)
   useEffect(() => {
@@ -69,15 +86,34 @@ const ProposalModal = ({
     return () => clearTimeout(t);
   }, [open, storageKey, proposal, amount, period]);
 
+
   const handleSubmit = async () => {
     setError(null);
     setSubmitting(true);
     try {
+
+  
+
       await onSubmit({
         amount: Number(amount),
         period: Number(period),
         description: proposal
       });
+
+        // Save bid history
+    await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
+      project_id: projectId,
+      bidder_id: bidderId,
+      amount: Number(amount),
+      period: Number(period),
+      description: proposal,
+      projectDescription: projectDescription,
+      projectTitle: projectTitle,
+      budget: budget,
+
+    });
+
+
       onClose?.();
     } catch (e) {
       setError(e?.message || 'Failed to place bid');

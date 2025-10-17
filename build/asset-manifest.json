@@ -1,13 +1,13 @@
 {
   "files": {
-    "main.css": "/static/css/main.50663013.css",
-    "main.js": "/static/js/main.bdc54a2f.js",
-    "index.html": "/index.html",
-    "main.50663013.css.map": "/static/css/main.50663013.css.map",
-    "main.bdc54a2f.js.map": "/static/js/main.bdc54a2f.js.map"
+    "main.css": "/ZameerGabolGithub/smart_Freelance/static/css/main.50663013.css",
+    "main.js": "/ZameerGabolGithub/smart_Freelance/static/js/main.b35c98e9.js",
+    "index.html": "/ZameerGabolGithub/smart_Freelance/index.html",
+    "main.50663013.css.map": "/ZameerGabolGithub/smart_Freelance/static/css/main.50663013.css.map",
+    "main.b35c98e9.js.map": "/ZameerGabolGithub/smart_Freelance/static/js/main.b35c98e9.js.map"
   },
   "entrypoints": [
     "static/css/main.50663013.css",
-    "static/js/main.bdc54a2f.js"
+    "static/js/main.b35c98e9.js"
   ]
 }

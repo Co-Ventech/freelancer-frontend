@@ -6,10 +6,11 @@ import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import { useFreelancerAPI } from './hooks/useFreelancerAPI';
 import { useModal } from './contexts/ModalContext';
-import { useBidding } from './hooks/useBidding'; 
+import { useBidding } from './hooks/useBidding';
 import { useAuth } from './contexts/AuthContext';
 import { useFirebaseAuth } from './contexts/FirebaseAuthContext';
 import ProposalModal from './components/ProposalModal';
+import NotificationBell from './components/NotificationBell';
 
 
 
@@ -20,27 +21,55 @@ const MainApp = () => {
   // Firebase authenticated user
   const { user: fbUser, logout } = useFirebaseAuth();
   // Multi-account token switching (Freelancer API credentials)
-  const { currentUser, availableUsers, switchUser } = useAuth();
-  
+  const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
+  const [autoBidEnabled, setAutoBidEnabled] = useState(false); // AutoBid is off by default
+
   const {
     projects,
     loading,
     error,
     fetchRecentProjects,
-    loadProjectsFromStorage,
     clearError,
     retryFetch,
-    lastFetchTime,
     newCount,
-    oldCount
-  } = useFreelancerAPI();
+    autoPlaceBids,
+    oldCount,
+
+  } = useFreelancerAPI({ bidderType: autoBidEnabled ? 'auto' : 'manual' });
 
   const { modalState, closeModal } = useModal();
+
   const { placeBid } = useBidding();
 
+  // Automatically fetch projects every minute
   useEffect(() => {
-    loadProjectsFromStorage();
-  }, [loadProjectsFromStorage]);
+    const interval = setInterval(() => {
+      if (!loading) {
+        fetchRecentProjects();
+      }
+    }, 6000); // 60,000 ms = 1 minute
+
+    return () => clearInterval(interval);
+  }, [fetchRecentProjects, loading]);
+
+  // Automatically place bids when AutoBid is enabled and cooldown is false
+  useEffect(() => {
+    if (autoBidEnabled && projects.length > 0) {
+      autoPlaceBids();
+    }
+  }, [autoBidEnabled, projects, autoPlaceBids]);
+
+
+  // // Automatically place bids after fetching projects
+  // useEffect(() => {
+  //   if (projects.length > 0) {
+  //     autoPlaceBids();
+  //   }
+  // }, [projects, autoPlaceBids]);
+
+  // useEffect(() => {
+  //   loadProjectsFromStorage();
+  // }, [loadProjectsFromStorage]);
 
   const handleFetchProjects = async () => {
     try {
@@ -60,16 +89,15 @@ const MainApp = () => {
   };
 
   const handleProjectsFetched = (projects) => {
-  console.log('Received projects from hardcoded fetch:', projects.length);
+    console.log('Received projects from hardcoded fetch:', projects.length);
 
-};
+  };
   const handleSubmitBid = async ({ amount, period, description }) => {
     const { projectId } = modalState.data;
-    const result = await placeBid(projectId, amount, period, description);
-    
+    const result = await placeBid(projectId, amount, period, description, bidderId);
+
     if (result?.success) {
       console.log('Bid response:', result.data);
-      alert('Bid placed successfully!');
       closeModal();
     } else if (result?.message) {
       throw new Error(result.message);
@@ -81,17 +109,30 @@ const MainApp = () => {
   return (
     <div className="App">
       {/* Simple header with user info and logout */}
-      <header className="app-header" style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        padding: '10px 20px', 
-        background: '#f8f9fa', 
+      <header className="app-header" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '10px 20px',
+        background: '#f8f9fa',
         borderBottom: '1px solid #dee2e6',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
       }}>
         <h1 style={{ margin: 0, color: '#495057' }}>🤖 Freelancer AutoBidder</h1>
+
+        {/* Toggle Button for AutoBid */}
+        <div className="toggle-container">
+          <label>
+            <input
+              type="checkbox"
+              checked={autoBidEnabled}
+              onChange={() => setAutoBidEnabled((prev) => !prev)}
+            />
+            Enable AutoBid
+          </label>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <NotificationBell />
           <span style={{ color: '#6c757d' }}>
             Welcome, <strong>{fbUser?.displayName || fbUser?.email}</strong>!
           </span>
@@ -112,7 +153,7 @@ const MainApp = () => {
               }}
             >
               {/* Default option */}
-              <option value="DEFAULT">Default</option>
+              <option value="DEFAULT">Zubair</option>
               {availableUsers && Object.entries(availableUsers)
                 .filter(([key]) => key !== 'DEFAULT')
                 .map(([key, info]) => (
@@ -120,7 +161,7 @@ const MainApp = () => {
                 ))}
             </select>
           </div>
-          <button 
+          <button
             onClick={logout}
             style={{
               background: '#dc3545',
@@ -135,7 +176,9 @@ const MainApp = () => {
             Logout
           </button>
         </div>
+
       </header>
+
 
       {/* Your existing content */}
       <div className="main-content" style={{ padding: '20px' }}>
@@ -145,10 +188,10 @@ const MainApp = () => {
             <div style={{ color: '#6c757d', fontSize: '14px' }}>
               📊 {projects.length} projects loaded
               {newCount > 0 && (
-                <span style={{ 
-                  marginLeft: '10px', 
-                  color: '#28a745', 
-                  fontWeight: 'bold' 
+                <span style={{
+                  marginLeft: '10px',
+                  color: '#28a745',
+                  fontWeight: 'bold'
                 }}>
                   ✨ {newCount} new
                 </span>
@@ -156,7 +199,13 @@ const MainApp = () => {
             </div>
           )}
         </div>
-        
+
+        {error && (
+          <div style={{ color: 'red', marginBottom: '10px' }}>
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+
         <FetchButton
           onFetch={fetchRecentProjects}
           loading={loading}
@@ -168,11 +217,11 @@ const MainApp = () => {
             // setProjects(projects); // or however you want to handle it
           }}
         />
-        
-        <ProjectList 
-          projects={projects} 
-          newCount={newCount} 
-          oldCount={oldCount} 
+
+        <ProjectList
+          projects={projects}
+          newCount={newCount}
+          oldCount={oldCount}
         />
       </div>
 
@@ -193,14 +242,14 @@ const MainApp = () => {
  */
 const AuthGate = () => {
   const [authMode, setAuthMode] = useState('login');
-  
+
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
     }}>
       {authMode === 'login' ? (
         <LoginForm onSwitchToRegister={() => setAuthMode('register')} />
@@ -220,17 +269,17 @@ function App() {
 
   if (fbLoading) {
     return (
-      <div style={{ 
-        display: 'flex', 
+      <div style={{
+        display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center', 
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
         background: '#f8f9fa'
       }}>
-        <div style={{ 
-          fontSize: '24px', 
-          marginBottom: '10px' 
+        <div style={{
+          fontSize: '24px',
+          marginBottom: '10px'
         }}>🤖</div>
         <div style={{ color: '#6c757d' }}>Loading...</div>
       </div>
