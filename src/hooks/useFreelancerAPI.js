@@ -348,7 +348,7 @@ export const useFreelancerAPI = ({ bidderType }) => {
     return null; // Skip projects that do not meet any criteria
   };
 
-  const saveBidHistory = async ({projectId, amount, period, description, bidderType}) => {
+  const saveBidHistory = async ({ projectId, amount, period, description, bidderType }) => {
     const bidderId = await getUserInfo();
     try {
       const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
