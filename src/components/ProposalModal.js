@@ -24,22 +24,24 @@ const ProposalModal = ({
   const [loadingProposal, setLoadingProposal] = useState(false);
   const [error, setError] = useState(null);
   const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
+  const [isAmountEdited, setIsAmountEdited] = useState(false);
+  const calculatedAmount = useMemo(() => {
+    return calculateBidAmount({ type, budget });
+  }, [type, budget])
 
   // Calculate bid amount when modal opens
   useEffect(() => {
     if (!open) return;
-
-    console.log('Received budget data:', budget); // Debugging log
-
-    const calculatedAmount = calculateBidAmount({ type, budget });
-
+    
     if (calculatedAmount === null) {
       setError('This project does not meet the bidding criteria,you can place bid manually.');
     } else {
       setError(null);
-      setAmount(calculatedAmount);
+      if (!isAmountEdited) {
+        setAmount(calculatedAmount);
+      }
     }
-  }, [open, type, budget, calculateBidAmount]);
+  }, [open, error, calculatedAmount, isAmountEdited, amount]);
 
   // Fetch dynamic proposal when modal opens
   useEffect(() => {
@@ -62,7 +64,7 @@ const ProposalModal = ({
           id: projectId,
           title: projectTitle,
           description: projectDescription,
-          name: currentUser==="DEFAULT"?"Zubair Alam": currentUser
+          name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
         });
 
         setProposal(response.data.proposal || 'Failed to generate proposal.');
@@ -174,7 +176,12 @@ const ProposalModal = ({
                     min={1}
                     className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={(e) => {
+                      if (!isAmountEdited) {
+                        setIsAmountEdited(true);
+                      }
+                      setAmount(e.target.value);
+                    }}
                   />
                 </div>
                 <div>
@@ -211,7 +218,7 @@ const ProposalModal = ({
             </button>
             <button
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || amount <= 0 || loadingProposal}
               className={`btn-primary ${submitting ? 'opacity-80 cursor-not-allowed' : ''}`}
             >
               {submitting ? 'Submitting...' : 'Submit Bid'}
