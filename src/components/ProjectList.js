@@ -16,6 +16,7 @@ const ProjectList = ({ projects, loading, error, lastFetchTime, newCount, oldCou
 
   const lastFetchRelative = useMemo(() => {
     if (!lastFetchTime) return 'N/A';
+    
     const diffSec = Math.max(0, Math.floor((nowMs - lastFetchTime) / 1000));
     if (diffSec < 60) return `${diffSec}s ago`;
     const min = Math.floor(diffSec / 60);

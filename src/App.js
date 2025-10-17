@@ -11,13 +11,13 @@ import { useAuth } from './contexts/AuthContext';
 import { useFirebaseAuth } from './contexts/FirebaseAuthContext';
 import ProposalModal from './components/ProposalModal';
 import NotificationBell from './components/NotificationBell';
+import { useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import SuccessBidsPage from './components/SuccessBidsPage';
 
 
-
-/**
- * Protected App Component - Your existing functionality
- */
 const MainApp = () => {
+    const navigate = useNavigate();
   // Firebase authenticated user
   const { user: fbUser, logout } = useFirebaseAuth();
   // Multi-account token switching (Freelancer API credentials)
@@ -130,9 +130,24 @@ const MainApp = () => {
             />
             Enable AutoBid
           </label>
+          
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <NotificationBell />
+                  <button
+          onClick={() => navigate('/bids')} // Navigate to the SuccessBidsPage
+          style={{
+            background: '#007bff',
+            color: 'white',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px'
+          }}
+        >
+          View Bids
+        </button>
           <span style={{ color: '#6c757d' }}>
             Welcome, <strong>{fbUser?.displayName || fbUser?.email}</strong>!
           </span>
@@ -287,9 +302,22 @@ function App() {
   }
 
   return (
-    <ErrorBoundary>
-      {fbUser ? <MainApp /> : <AuthGate />}
-    </ErrorBoundary>
+
+    <Router>
+      <ErrorBoundary>
+        {fbUser ? (
+          <Routes>
+            <Route path="/" element={<MainApp />} />
+            <Route path="/bids" element={<SuccessBidsPage />} />
+          </Routes>
+        ) : (
+          <AuthGate />
+        )}
+      </ErrorBoundary>
+    </Router>
+    // <ErrorBoundary>
+    //   {fbUser ? <MainApp /> : <AuthGate />}
+    // </ErrorBoundary>
   );
 }
 
