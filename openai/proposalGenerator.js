@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const openai_client = new OpenAI({
-  apiKey: process.env.OPEN_AI_API_KEY,
+    apiKey: process.env.OPEN_AI_API_KEY,
 });
 
 // === Load the email template ===
@@ -13,20 +13,20 @@ const templatePath = path.resolve("templates/email_templates.json");
 let universalTemplate = "";
 
 try {
-  const data = JSON.parse(fs.readFileSync(templatePath, "utf-8"));
-  universalTemplate = data.freelancer_template?.base_structure || "";
+    const data = JSON.parse(fs.readFileSync(templatePath, "utf-8"));
+    universalTemplate = data.freelancer_template?.base_structure || "";
 } catch (error) {
-  console.error("❌ Missing or invalid email_templates.json:", error);
-  process.exit(1);
+    console.error("❌ Missing or invalid email_templates.json:", error);
+    process.exit(1);
 }
 
 if (!universalTemplate) {
-  throw new Error("❌ Missing base_structure inside freelancer_template in email_templates.json");
+    throw new Error("❌ Missing base_structure inside freelancer_template in email_templates.json");
 }
 
 // === Function to generate proposal ===
 export async function generateProposal(title, description) {
-  const prompt = `
+    const prompt = `
 You are a professional freelancer crafting proposals for clients on Freelancer.com.
 
 Follow this exact structure and tone. DO NOT alter the structure, tone, or link formatting.
@@ -45,7 +45,7 @@ Job Description: ${description}
 
 Follow these exact rules:
 - Start with “Hey, how are you?” or “Hi, how are you?”
-- Second line: Start with "Although I am new to freelancing, I have over 5 years of experience in [client's related domain/skill/issue]", and express confidence in solving the client’s main issue.
+- Second line: Start with "Although I am new to freelancer, I have over 5 years of experience in [client's related domain/skill/issue]", and express confidence in solving the client’s main issue.
 - Third and fourth lines: briefly explain your relevant experience and skills (align with job).
 - Include this section exactly:
   You can review a few of my past work:
@@ -62,24 +62,24 @@ Follow these exact rules:
 - End with a polite closing similar to: “Looking forward to hearing more about your vision...” and “Thank you. [Name].”
 `;
 
-  try {
-    const response = await openai_client.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert in writing natural, confident, and human-like Freelancer proposals.",
-        },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 600,
-    });
+    try {
+        const response = await openai_client.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: [
+                {
+                    role: "system",
+                    content: "You are an expert in writing natural, confident, and human-like Freelancer proposals.",
+                },
+                { role: "user", content: prompt },
+            ],
+            temperature: 0.7,
+            max_tokens: 600,
+        });
 
-    return response.choices[0].message.content.trim();
-  } catch (error) {
-    console.error("❌ Error generating proposal:", error);
-    return "Error generating proposal.";
-  }
+        return response.choices[0].message.content.trim();
+    } catch (error) {
+        console.error("❌ Error generating proposal:", error);
+        return "Error generating proposal.";
+    }
 }
 

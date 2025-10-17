@@ -9,7 +9,7 @@ app.use(express.json());
 
 // === POST route to generate proposal ===
 app.post("/generate-proposal", async (req, res) => {
-  const { id, title, description } = req.body;
+  const { id, title, description} = req.body;
 
   if (!title || !description) {
     return res.status(400).json({ error: "Missing title or description." });
