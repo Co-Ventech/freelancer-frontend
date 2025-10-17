@@ -181,7 +181,7 @@ export const useFreelancerAPI = ({ bidderType }) => {
           console.log(`Project ${project.id} is an NDA project. Skipping.`);
           return false;
         }
-
+        
         return true;
       });
 
@@ -212,9 +212,18 @@ export const useFreelancerAPI = ({ bidderType }) => {
       const isRecent = nowUnix - project.submitdate <= 60; // Projects less than 1 minute old
       if (!isRecent) {
         console.log(`Project ${project.id} is not recent. Skipping.`);
+        return false;
       }
-      return isRecent;
+
+      const bidCount = project.bid_stats?.bid_count || 0;
+      if (bidCount >= 50) {
+        console.log(`Project ${project.id} has 50 or more bids. Skipping.`);
+        return false;
+      }
+
+      return true; // Passed all checks
     });
+
 
     console.log(`Recent projects for auto-bid:`, recentProjects);
 
@@ -245,6 +254,7 @@ export const useFreelancerAPI = ({ bidderType }) => {
             id: project.id,
             title: project.title,
             description: project.description || 'No description available',
+            name: currentUser==="DEFAULT"?"Zubair Alam": currentUser
           });
 
           if (!response.data || !response.data.proposal) {
