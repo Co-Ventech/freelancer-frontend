@@ -182,11 +182,6 @@ export const useFreelancerAPI = ({ bidderType }) => {
           return false;
         }
         
-        // Exclude projects with 50 or more bids
-        if ((project.bid_stats?.bid_count || 0) >= 50) {
-          return false;
-        }
-
         return true;
       });
 
@@ -217,9 +212,18 @@ export const useFreelancerAPI = ({ bidderType }) => {
       const isRecent = nowUnix - project.submitdate <= 60; // Projects less than 1 minute old
       if (!isRecent) {
         console.log(`Project ${project.id} is not recent. Skipping.`);
+        return false;
       }
-      return isRecent;
+
+      const bidCount = project.bid_stats?.bid_count || 0;
+      if (bidCount >= 50) {
+        console.log(`Project ${project.id} has 50 or more bids. Skipping.`);
+        return false;
+      }
+
+      return true; // Passed all checks
     });
+
 
     console.log(`Recent projects for auto-bid:`, recentProjects);
 
