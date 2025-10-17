@@ -40,37 +40,40 @@ const ProposalModal = ({
       setAmount(calculatedAmount);
     }
   }, [open, type, budget, calculateBidAmount]);
-  
+
   // Fetch dynamic proposal when modal opens
   useEffect(() => {
     if (!open) return;
 
-   const fetchProposal = async () => {
-  setLoadingProposal(true);
-  setError(null);
+    const fetchProposal = async () => {
+      setLoadingProposal(true);
+      setError(null);
 
-  try {
-    console.log('Sending API request:', {
-      id: projectId,
-      title: projectTitle,
-      description: projectDescription, 
-    });
+      try {
+        console.log('Sending API request:', {
+          id: projectId,
+          title: projectTitle,
+          description: projectDescription,
+        });
 
-    const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
-      id: projectId,
-      title: projectTitle,
-      description: projectDescription,
-    });
+        console.log("Current User: ", currentUser)
 
-    setProposal(response.data.proposal || 'Failed to generate proposal.');
-  } catch (err) {
-    console.error('Error generating proposal:', err);
-    setProposal('Failed to generate proposal.');
-    setError('Could not generate proposal. Please try again.');
-  } finally {
-    setLoadingProposal(false);
-  }
-};
+        const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
+          id: projectId,
+          title: projectTitle,
+          description: projectDescription,
+          name: currentUser==="DEFAULT"?"Zubair Alam": currentUser
+        });
+
+        setProposal(response.data.proposal || 'Failed to generate proposal.');
+      } catch (err) {
+        console.error('Error generating proposal:', err);
+        setProposal('Failed to generate proposal.');
+        setError('Could not generate proposal. Please try again.');
+      } finally {
+        setLoadingProposal(false);
+      }
+    };
 
     fetchProposal();
   }, [open, projectId, projectTitle, projectDescription]);
@@ -81,7 +84,7 @@ const ProposalModal = ({
     const t = setTimeout(() => {
       try {
         localStorage.setItem(storageKey, JSON.stringify({ proposal, amount, period }));
-      } catch {}
+      } catch { }
     }, 250);
     return () => clearTimeout(t);
   }, [open, storageKey, proposal, amount, period]);
@@ -92,7 +95,7 @@ const ProposalModal = ({
     setSubmitting(true);
     try {
 
-  
+
 
       await onSubmit({
         amount: Number(amount),
@@ -100,18 +103,18 @@ const ProposalModal = ({
         description: proposal
       });
 
-        // Save bid history
-    await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
-      project_id: projectId,
-      bidder_id: bidderId,
-      amount: Number(amount),
-      period: Number(period),
-      description: proposal,
-      projectDescription: projectDescription,
-      projectTitle: projectTitle,
-      budget: budget,
+      // Save bid history
+      await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
+        project_id: projectId,
+        bidder_id: bidderId,
+        amount: Number(amount),
+        period: Number(period),
+        description: proposal,
+        projectDescription: projectDescription,
+        projectTitle: projectTitle,
+        budget: budget,
 
-    });
+      });
 
 
       onClose?.();
@@ -127,8 +130,8 @@ const ProposalModal = ({
   return (
     <div className="fixed inset-0 z-50">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/40" 
+      <div
+        className="absolute inset-0 bg-black/40"
         onClick={submitting ? undefined : onClose}
       ></div>
 

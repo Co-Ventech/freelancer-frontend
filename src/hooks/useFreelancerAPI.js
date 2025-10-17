@@ -245,6 +245,7 @@ export const useFreelancerAPI = ({ bidderType }) => {
             id: project.id,
             title: project.title,
             description: project.description || 'No description available',
+            name: currentUser==="DEFAULT"?"Zubair Alam": currentUser
           });
 
           if (!response.data || !response.data.proposal) {
