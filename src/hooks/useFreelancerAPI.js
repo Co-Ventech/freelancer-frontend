@@ -181,6 +181,11 @@ export const useFreelancerAPI = ({ bidderType }) => {
           console.log(`Project ${project.id} is an NDA project. Skipping.`);
           return false;
         }
+        
+        // Exclude projects with 50 or more bids
+        if ((project.bid_stats?.bid_count || 0) >= 50) {
+          return false;
+        }
 
         return true;
       });
