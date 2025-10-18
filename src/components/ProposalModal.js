@@ -124,7 +124,7 @@ const ProposalModal = ({
         projectDescription: projectDescription,
         projectTitle: projectTitle,
         budget: budget,
-        bidder_type:"manual"
+        bidder_type: "manual"
       });
 
 
@@ -212,8 +212,18 @@ const ProposalModal = ({
                 </div>
                 <div className="bg-gray-50 rounded-lg p-2 text-xs">
                   <div className="text-gray-500">Budget</div>
-                  <div className="font-medium text-gray-900">{budgetDisplay}</div>
+                  {budget && budget.minimum && budget.maximum ? (
+                    <div className="font-medium text-gray-900">
+                      Min: ${budget.minimum}, Max: ${budget.maximum}
+                    </div>
+                  ) : (
+                    <div className="text-gray-500">Budget information not available</div>
+                  )}
                 </div>
+                {/* <div className="bg-gray-50 rounded-lg p-2 text-xs">
+                  <div className="text-gray-500">Budget</div>
+                  <div className="font-medium text-gray-900">{budgetDisplay}</div>
+                </div> */}
               </div>
             </div>
 
