@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { PROPOSAL_STORAGE_PREFIX } from '../utils/apiUtils';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { getGeneralProposal } from '../constants/general-proposal';
 
 const ProposalModal = ({
   open,
@@ -25,14 +26,15 @@ const ProposalModal = ({
   const [error, setError] = useState(null);
   const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
   const [isAmountEdited, setIsAmountEdited] = useState(false);
+  const [isAiProposalEnabled, setIsAiPropoalEnabled] = useState(false);
   const calculatedAmount = useMemo(() => {
     return calculateBidAmount({ type, budget });
-  }, [type, budget])
+  }, [type, budget]);
 
   // Calculate bid amount when modal opens
   useEffect(() => {
     if (!open) return;
-    
+
     if (calculatedAmount === null) {
       setError('This project does not meet the bidding criteria,you can place bid manually.');
     } else {
@@ -43,42 +45,49 @@ const ProposalModal = ({
     }
   }, [open, error, calculatedAmount, isAmountEdited, amount]);
 
+  const fetchProposal = async () => {
+    setLoadingProposal(true);
+    setError(null);
+
+    try {
+      console.log('Sending API request:', {
+        id: projectId,
+        title: projectTitle,
+        description: projectDescription,
+      });
+
+      console.log("Current User: ", currentUser)
+
+      const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
+        id: projectId,
+        title: projectTitle,
+        description: projectDescription,
+        name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
+      });
+
+      setProposal(response.data.proposal || 'Failed to generate proposal.');
+    } catch (err) {
+      console.error('Error generating proposal:', err);
+      setProposal('Failed to generate proposal.');
+      setError('Could not generate proposal. Please try again.');
+    } finally {
+      setLoadingProposal(false);
+    }
+  };
+
   // Fetch dynamic proposal when modal opens
+
+
   useEffect(() => {
-    if (!open) return;
+    if (isAiProposalEnabled) {
+      fetchProposal();
+    } else {
+      const generalProposal = getGeneralProposal(currentUser);
+      setProposal(generalProposal);
+    }
+  }, [isAiProposalEnabled])
 
-    const fetchProposal = async () => {
-      setLoadingProposal(true);
-      setError(null);
 
-      try {
-        console.log('Sending API request:', {
-          id: projectId,
-          title: projectTitle,
-          description: projectDescription,
-        });
-
-        console.log("Current User: ", currentUser)
-
-        const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
-          id: projectId,
-          title: projectTitle,
-          description: projectDescription,
-          name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
-        });
-
-        setProposal(response.data.proposal || 'Failed to generate proposal.');
-      } catch (err) {
-        console.error('Error generating proposal:', err);
-        setProposal('Failed to generate proposal.');
-        setError('Could not generate proposal. Please try again.');
-      } finally {
-        setLoadingProposal(false);
-      }
-    };
-
-    fetchProposal();
-  }, [open, projectId, projectTitle, projectDescription]);
 
   // Persist on change (debounced light)
   useEffect(() => {
@@ -169,6 +178,13 @@ const ProposalModal = ({
                 <div className="mt-1 text-xs text-gray-400">Saved automatically</div>
               </div>
               <div className="space-y-3">
+                {/*  */}
+                <label class="switch">
+                  <input type="checkbox" checked={isAiProposalEnabled}
+                    onChange={() => setIsAiPropoalEnabled((prev) => !prev)}
+                  />
+                  <span class="slider round" className='text-sm'> AI Proposal</span>
+                </label>
                 <div>
                   <label className="text-sm text-gray-500 block mb-1">Bid Amount</label>
                   <input
