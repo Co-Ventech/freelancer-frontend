@@ -273,11 +273,23 @@ export const useFreelancerAPI = ({ bidderType }) => {
             }
           );
 
-          console.log(`Bid placed successfully for project ${project.id}`);
-          const titleText = (project?.title || '').trim();
-          const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
-          showSuccess(`AutoBid: Bid placed for ${pretty}`);
-          notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`);
+           console.log(`Bid placed successfully for project ${project.id}`);
+           showSuccess(`AutoBid: Bid placed for #${project.id}`);
+           const titleText = (project?.title || '').trim();
+           const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
+           
+           // Create notification with project data for View button
+           const projectData = {
+             id: project.id,
+             title: titleText,
+             description: project.description || 'No description available',
+             amount: bidAmount,
+             currency: project.currency?.code || 'USD',
+             currencySign: project.currency?.sign || '$'
+           };
+           
+           notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`, projectData);
+
           // Save bid history
           await saveBidHistory({ ...bidResponse.data, bidderType });
 
@@ -288,17 +300,19 @@ export const useFreelancerAPI = ({ bidderType }) => {
           const errorMessage = handleApiError(err);
           console.error(`Error processing project ${project.id}:`, err);
           showError(`AutoBid error on #${project.id}: ${errorMessage}`);
-          notifyError('Bid failed', `#${project.id}: ${errorMessage}`);
+          const titleTextErr = (project?.title || '').trim();
+          const prettyErr = titleTextErr ? `#${project.id} — ${titleTextErr}` : `#${project.id}`;
+          notifyError('Bid failed', `${prettyErr}: ${errorMessage}`);
         }
       }
-
+    
       setCooldown(true);
       setTimeout(() => {
         setCooldown(false);
         console.log('Cooldown ended. Auto-bid is now active.');
       }, 5 * 60 * 1000); // 2-minute cooldown
-      showSuccess('AutoBid completed successfully');
-      notifySuccess('AutoBid completed', 'Auto-bidding run completed successfully');
+      // showSuccess('AutoBid completed successfully');
+      // notifySuccess('AutoBid completed', 'Auto-bidding run completed successfully');
     } catch (err) {
       const errorMessage = handleApiError(err);
       console.error('Error fetching bidder_id or placing bids:', err);
