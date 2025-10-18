@@ -124,7 +124,7 @@ const ProposalModal = ({
         projectDescription: projectDescription,
         projectTitle: projectTitle,
         budget: budget,
-
+        bidder_type:"manual"
       });
 
 

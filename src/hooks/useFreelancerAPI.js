@@ -289,7 +289,7 @@ export const useFreelancerAPI = ({ bidderType }) => {
           showSuccess(`AutoBid: Bid placed for ${pretty}`);
           notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`);
           // Save bid history
-          await saveBidHistory({ ...bidResponse.data, bidderType });
+          await saveBidHistory({ ...bidResponse.data, bidderType:"auto" });
 
           // Add a 30-second delay before placing the next bid
           console.log(`Waiting 20 seconds before placing the next bid...`);
