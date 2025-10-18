@@ -6,7 +6,8 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getUnixTimestamp } from '../utils/dateUtils';
 
-export const useFreelancerAPI = ({ bidderType }) => {
+
+export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
   const { token, currentUser } = useAuth();
   const { showSuccess, showError, showInfo } = useToast();
   const { addSuccess: notifySuccess, addError: notifyError, addInfo: notifyInfo } = useNotifications();
@@ -221,7 +222,14 @@ export const useFreelancerAPI = ({ bidderType }) => {
         return false;
       }
 
-      return true; // Passed all checks
+        // Filter by autoBidType
+    if (autoBidType !== 'all' && project.type !== autoBidType) {
+      console.log(`Project ${project.id} does not match the selected type (${autoBidType}). Skipping.`);
+      return false;
+    }
+
+
+      return true; // Passed all checks 
     });
 
 
