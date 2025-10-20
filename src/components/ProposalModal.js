@@ -36,14 +36,24 @@ const ProposalModal = ({
     if (!open) return;
 
     if (calculatedAmount === null) {
-      setError('This project does not meet the bidding criteria,you can place bid manually.');
+      // setError('This project does not meet the bidding criteria, you can place a bid manually.');
+      // If budget max is available, pre-fill the amount with the max so user can edit it
+      if (!isAmountEdited) {
+        if (budget && (budget.maximum || budget.minimum)) {
+          // prefer maximum if present, otherwise use minimum
+          const prefill = budget.maximum ?? budget.minimum;
+          setAmount(String(prefill));
+        } else {
+          setAmount(''); // leave empty so user types a value
+        }
+      }
     } else {
       setError(null);
       if (!isAmountEdited) {
-        setAmount(calculatedAmount);
+        setAmount(String(calculatedAmount));
       }
     }
-  }, [open, error, calculatedAmount, isAmountEdited, amount]);
+  }, [open,budget, error, calculatedAmount, isAmountEdited, amount]);
 
   const fetchProposal = async () => {
     setLoadingProposal(true);
@@ -193,12 +203,16 @@ const ProposalModal = ({
                     className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     value={amount}
                     onChange={(e) => {
-                      if (!isAmountEdited) {
+                      if (!isAmountEdited) 
                         setIsAmountEdited(true);
-                      }
                       setAmount(e.target.value);
                     }}
                   />
+                   {calculatedAmount === null && budget && (budget.maximum || budget.minimum) && (
+                    <div className="text-xs text-gray-500 mt-1">
+                       Prefilled with project max: ${budget.maximum ?? budget.minimum}. You can edit this value.
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm text-gray-500 block mb-1">Delivery (days)</label>
