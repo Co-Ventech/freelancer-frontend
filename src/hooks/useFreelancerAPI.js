@@ -289,7 +289,7 @@ export const useFreelancerAPI = ({ bidderType }) => {
           showSuccess(`AutoBid: Bid placed for ${pretty}`);
           notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`);
           // Save bid history
-          await saveBidHistory({ ...bidResponse.data, bidderType:"auto" });
+          await saveBidHistory({ bidderType:"auto", description: proposal, projectTitle: project.title, projectDescription: project.description, budget: project?.budget, amount: bidResponse?.data?.amount });
 
           // Add a 30-second delay before placing the next bid
           console.log(`Waiting 20 seconds before placing the next bid...`);
@@ -359,13 +359,15 @@ export const useFreelancerAPI = ({ bidderType }) => {
     return null; // Skip projects that do not meet any criteria
   };
 
-  const saveBidHistory = async ({ projectId, amount, period, description, bidderType }) => {
+  const saveBidHistory = async ({ projectId, amount, period, description, bidderType, projectDescription, projectTitle, budget }) => {
     const bidderId = await getUserInfo();
     try {
       const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
         project_id: projectId,
         bidder_id: bidderId,
         amount,
+        projectDescription: projectDescription,
+        projectTitle: projectTitle,
         period,
         description,
         bidder_type: bidderType,
