@@ -49,7 +49,7 @@ const MainApp = () => {
       if (!loading) {
         fetchRecentProjects();
       }
-    }, 6000); // 60,000 ms = 1 minute
+    }, 30000); // 30,000 ms = 30 seconds
 
     return () => clearInterval(interval);
   }, [fetchRecentProjects, loading]);
@@ -57,6 +57,7 @@ const MainApp = () => {
   // Automatically place bids when AutoBid is enabled and cooldown is false
   useEffect(() => {
     if (autoBidEnabled && projects.length > 0) {
+      console.log("Checking Project for Autobid: ",projects.length)
       autoPlaceBids();
     }
   }, [autoBidEnabled, projects, autoPlaceBids]);
