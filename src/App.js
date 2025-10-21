@@ -56,6 +56,7 @@ const MainApp = () => {
   // Automatically place bids when AutoBid is enabled and cooldown is false
   useEffect(() => {
     if (autoBidEnabled && projects.length > 0) {
+      console.log("Checking Project for Autobid: ",projects.length)
       autoPlaceBids();
     }
   }, [autoBidEnabled, projects, autoPlaceBids]);

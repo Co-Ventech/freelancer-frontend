@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getUnixTimestamp } from '../utils/dateUtils';
 
 
-export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
+export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
   const { token, currentUser } = useAuth();
   const { showSuccess, showError, showInfo } = useToast();
   const { addSuccess: notifySuccess, addError: notifyError, addInfo: notifyInfo } = useNotifications();
@@ -159,7 +159,7 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
       }
 
       const skillIds = await getUserSkills(userId);
-       const result = await getProjectsBySkills(skillIds);
+      const result = await getProjectsBySkills(skillIds);
       let projects = result.projects || [];
       const usersMap = result.users || {};
 
@@ -167,20 +167,20 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
       projects = projects.filter((project) => {
         const { currency, budget, location, NDA } = project;
 
-               // Determine owner id (owner_id or owner.id)
+        // Determine owner id (owner_id or owner.id)
         const ownerId = project.owner_id || project.owner?.id || project.user_id || null;
         const owner = ownerId ? usersMap[ownerId] : undefined;
 
-        
+
         // Try several possible location paths (owner, owner.profile, project)
         const ownerCountry =
           owner?.location?.country?.name ||
           owner?.profile?.location?.country?.name ||
           project.location?.country?.name ||
           '';
-          
 
-           const ownerCountryNormalized = (ownerCountry || '').toString().trim().toLowerCase();
+
+        const ownerCountryNormalized = (ownerCountry || '').toString().trim().toLowerCase();
 
         // Exclude projects where owner country includes "india"
         if (ownerCountryNormalized.includes('india')) {
@@ -188,12 +188,12 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
           return false;
         }
 
-      // Exclude projects with currency = "INR"
+        // Exclude projects with currency = "INR"
         if ((currency?.code || '').toUpperCase() === 'INR') {
           return false;
         }
 
-     
+
         // Exclude projects with hourly rate minimum <= 5
         if (budget?.minimum && Number(budget.minimum) <= 5) {
           return false;
@@ -203,7 +203,7 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
           console.log(`Project ${project.id} is an NDA project. Skipping.`);
           return false;
         }
-        
+
         return true;
       });
 
@@ -243,11 +243,11 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
         return false;
       }
 
-        // Filter by autoBidType
-    if (autoBidType !== 'all' && project.type !== autoBidType) {
-      console.log(`Project ${project.id} does not match the selected type (${autoBidType}). Skipping.`);
-      return false;
-    }
+      // Filter by autoBidType
+      if (autoBidType !== 'all' && project.type !== autoBidType) {
+        console.log(`Project ${project.id} does not match the selected type (${autoBidType}). Skipping.`);
+        return false;
+      }
 
 
       return true; // Passed all checks 
@@ -283,7 +283,7 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
             id: project.id,
             title: project.title,
             description: project.description || 'No description available',
-            name: currentUser==="DEFAULT"?"Zubair Alam": currentUser
+            name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
           });
 
           if (!response.data || !response.data.proposal) {
@@ -312,25 +312,25 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
             }
           );
 
-           console.log(`Bid placed successfully for project ${project.id}`);
-           showSuccess(`AutoBid: Bid placed for #${project.id}`);
-           const titleText = (project?.title || '').trim();
-           const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
-           
-           // Create notification with project data for View button
-           const projectData = {
-             id: project.id,
-             title: titleText,
-             description: project.description || 'No description available',
-             amount: bidAmount,
-             currency: project.currency?.code || 'USD',
-             currencySign: project.currency?.sign || '$'
-           };
-           
-           notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`, projectData);
+          console.log(`Bid placed successfully for project ${project.id}`);
+          showSuccess(`AutoBid: Bid placed for #${project.id}`);
+          const titleText = (project?.title || '').trim();
+          const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
+
+          // Create notification with project data for View button
+          const projectData = {
+            id: project.id,
+            title: titleText,
+            description: project.description || 'No description available',
+            amount: bidAmount,
+            currency: project.currency?.code || 'USD',
+            currencySign: project.currency?.sign || '$'
+          };
+
+          notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`, projectData);
 
           // Save bid history
-          await saveBidHistory({ bidderType:"auto", description: proposal, projectTitle: project.title, projectDescription: project.description, budget: project?.budget, amount: bidResponse?.data.amount });
+          await saveBidHistory({ bidderType: "auto", description: proposal, projectTitle: project.title, projectDescription: project.description, budget: project?.budget, amount: bidResponse?.data.amount });
 
           // Add a 30-second delay before placing the next bid
           console.log(`Waiting 20 seconds before placing the next bid...`);
@@ -344,7 +344,7 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
           notifyError('Bid failed', `${prettyErr}: ${errorMessage}`);
         }
       }
-    
+
       setCooldown(true);
       setTimeout(() => {
         setCooldown(false);
@@ -358,7 +358,7 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
       showError(`AutoBid failed: ${errorMessage}`);
       notifyError('AutoBid failed', errorMessage);
     }
-  }, [projects, token, cooldown, getUserInfo,autoBidType]);
+  }, [projects, token, cooldown, getUserInfo, autoBidType]);
 
 
 
@@ -384,15 +384,19 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
         console.log(`Project ${project.id} is hourly with rate ≤ $10/hour. Bidding maximum: ${maxBudget}`);
         return maxBudget; // Bid the maximum amount for rates ≤ $10/hour
       }
-    } else if (type === 'fixed') {
+    } 
+    else if (type === 'fixed') {
       // Fixed-Price Projects
-      if (minBudget >= 200 && maxBudget <= 900) {
-        console.log(`Project ${project.id} is fixed-price with budget between $200 and $500. Bidding maximum: ${maxBudget}`);
+      if (minBudget >= 30 && maxBudget >= 200) {
+        console.log(`Project ${project.id} is fixed-price with budget between $30 and $250. Bidding maximum: ${maxBudget}`);
         return maxBudget; // Bid the maximum amount for budgets between $200 and $500
-      } else if (maxBudget > 1000) {
+      } else if (minBudget >= 250 && maxBudget <= 900) {
+        console.log(`Project ${project.id} is fixed-price with budget between $250 and $900. Bidding maximum: ${maxBudget}`);
+        return maxBudget; // Bid the maximum amount for budgets between $200 and $500
+      }else if (maxBudget > 1000) {
         console.log(`Project ${project.id} is fixed-price with budget > $1,000. Bidding minimum: ${minBudget}`);
         return minBudget; // Bid the minimum amount for budgets > $1,000
-      } else if (maxBudget < 200) {
+      } else {
         console.log(`Project ${project.id} is fixed-price with budget < $200. Skipping.`);
         return null; // Skip projects with budgets < $200
       }
