@@ -6,7 +6,8 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getUnixTimestamp } from '../utils/dateUtils';
 
-export const useFreelancerAPI = ({ bidderType }) => {
+
+export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
   const { token, currentUser } = useAuth();
   const { showSuccess, showError, showInfo } = useToast();
   const { addSuccess: notifySuccess, addError: notifyError, addInfo: notifyInfo } = useNotifications();
@@ -87,7 +88,7 @@ export const useFreelancerAPI = ({ bidderType }) => {
   const getProjectsBySkills = useCallback(async (skillIds) => {
     if (!skillIds || skillIds.length === 0) {
       console.warn('No skills found for the user. Returning an empty project list.');
-      return [];
+      return { projects: [], users: {} };
     }
 
     const from_time = getUnixTimestamp(300)
@@ -114,7 +115,10 @@ export const useFreelancerAPI = ({ bidderType }) => {
         },
       });
 
-      return response.data?.result?.projects || [];
+      // return both projects and users map (some endpoints include users in result)
+      const resProjects = response.data?.result?.projects || [];
+      const resUsers = response.data?.result?.users || {};
+      return { projects: resProjects, users: resUsers };
     } catch (err) {
       console.error('Error fetching projects by skills:', err);
       throw new Error('Failed to fetch projects by skills');
@@ -155,27 +159,45 @@ export const useFreelancerAPI = ({ bidderType }) => {
       }
 
       const skillIds = await getUserSkills(userId);
-      let projects = await getProjectsBySkills(skillIds); // Change `const` to `let`
+       const result = await getProjectsBySkills(skillIds);
+      let projects = result.projects || [];
+      const usersMap = result.users || {};
 
       // Filter projects based on the conditions
       projects = projects.filter((project) => {
         const { currency, budget, location, NDA } = project;
 
-        // Exclude projects with country = "India"
-        if (location?.country.name === 'India') {
+               // Determine owner id (owner_id or owner.id)
+        const ownerId = project.owner_id || project.owner?.id || project.user_id || null;
+        const owner = ownerId ? usersMap[ownerId] : undefined;
+
+        
+        // Try several possible location paths (owner, owner.profile, project)
+        const ownerCountry =
+          owner?.location?.country?.name ||
+          owner?.profile?.location?.country?.name ||
+          project.location?.country?.name ||
+          '';
+          
+
+           const ownerCountryNormalized = (ownerCountry || '').toString().trim().toLowerCase();
+
+        // Exclude projects where owner country includes "india"
+        if (ownerCountryNormalized.includes('india')) {
+          console.log(`Skipping project ${project.id} - owner country is ${ownerCountry}`);
           return false;
         }
 
-        // Exclude projects with currency = "INR"
-        if (currency?.code === 'INR') {
+      // Exclude projects with currency = "INR"
+        if ((currency?.code || '').toUpperCase() === 'INR') {
           return false;
         }
 
+     
         // Exclude projects with hourly rate minimum <= 5
-        if (budget?.minimum && budget.minimum <= 5) {
+        if (budget?.minimum && Number(budget.minimum) <= 5) {
           return false;
         }
-
         // Exclude projects with NDA = true
         if (NDA === true) {
           console.log(`Project ${project.id} is an NDA project. Skipping.`);
@@ -221,7 +243,14 @@ export const useFreelancerAPI = ({ bidderType }) => {
         return false;
       }
 
-      return true; // Passed all checks
+        // Filter by autoBidType
+    if (autoBidType !== 'all' && project.type !== autoBidType) {
+      console.log(`Project ${project.id} does not match the selected type (${autoBidType}). Skipping.`);
+      return false;
+    }
+
+
+      return true; // Passed all checks 
     });
 
 
@@ -315,7 +344,7 @@ export const useFreelancerAPI = ({ bidderType }) => {
       showError(`AutoBid failed: ${errorMessage}`);
       notifyError('AutoBid failed', errorMessage);
     }
-  }, [projects, token, cooldown, getUserInfo]);
+  }, [projects, token, cooldown, getUserInfo,autoBidType]);
 
 
 

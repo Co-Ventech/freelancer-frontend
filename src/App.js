@@ -23,6 +23,7 @@ const MainApp = () => {
   // Multi-account token switching (Freelancer API credentials)
   const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
   const [autoBidEnabled, setAutoBidEnabled] = useState(false); // AutoBid is off by default
+   const [autoBidType, setAutoBidType] = useState('all'); 
 
   const {
     projects,
@@ -35,7 +36,7 @@ const MainApp = () => {
     autoPlaceBids,
     oldCount,
 
-  } = useFreelancerAPI({ bidderType: autoBidEnabled ? 'auto' : 'manual' });
+  } = useFreelancerAPI({ bidderType: autoBidEnabled ? 'auto' : 'manual', autoBidType });
 
   const { modalState, closeModal } = useModal();
 
@@ -132,6 +133,29 @@ const MainApp = () => {
           </label>
           
         </div>
+
+         {/* Select Box for AutoBid Type */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <label htmlFor="autoBidType" style={{ fontSize: '14px', color: '#495057' }}>AutoBid Type:</label>
+          <select
+            id="autoBidType"
+            value={autoBidType}
+            onChange={(e) => setAutoBidType(e.target.value)}
+            style={{
+              padding: '6px 8px',
+              borderRadius: '4px',
+              border: '1px solid #ced4da',
+              background: 'white',
+              color: '#495057',
+              fontSize: '13px'
+            }}
+          >
+            <option value="all">All</option>
+            <option value="fixed">Fixed</option>
+            <option value="hourly">Hourly</option>
+          </select>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <NotificationBell />
                   <button
