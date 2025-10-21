@@ -17,13 +17,14 @@ import SuccessBidsPage from './components/SuccessBidsPage';
 
 
 const MainApp = () => {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
   // Firebase authenticated user
   const { user: fbUser, logout } = useFirebaseAuth();
   // Multi-account token switching (Freelancer API credentials)
   const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
-  const [autoBidEnabled, setAutoBidEnabled] = useState(false); // AutoBid is off by default
-   const [autoBidType, setAutoBidType] = useState('all'); 
+  const [autoBidEnabledMap, setAutoBidEnabledMap] = useState({});
+  const autoBidEnabled = !!autoBidEnabledMap[currentUser];
+  const [autoBidType, setAutoBidType] = useState('all');
 
   const {
     projects,
@@ -127,14 +128,19 @@ const MainApp = () => {
             <input
               type="checkbox"
               checked={autoBidEnabled}
-              onChange={() => setAutoBidEnabled((prev) => !prev)}
+              onChange={() =>
+                setAutoBidEnabledMap((prev) => ({
+                  ...prev,
+                  [currentUser]: !prev[currentUser]
+                }))
+              }
             />
             Enable AutoBid
           </label>
-          
+
         </div>
 
-         {/* Select Box for AutoBid Type */}
+        {/* Select Box for AutoBid Type */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <label htmlFor="autoBidType" style={{ fontSize: '14px', color: '#495057' }}>AutoBid Type:</label>
           <select
@@ -158,20 +164,20 @@ const MainApp = () => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <NotificationBell />
-                  <button
-          onClick={() => navigate('/bids')} // Navigate to the SuccessBidsPage
-          style={{
-            background: '#007bff',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
-        >
-          View Bids
-        </button>
+          <button
+            onClick={() => navigate('/bids')} // Navigate to the SuccessBidsPage
+            style={{
+              background: '#007bff',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            View Bids
+          </button>
           <span style={{ color: '#6c757d' }}>
             Welcome, <strong>{fbUser?.displayName || fbUser?.email}</strong>!
           </span>

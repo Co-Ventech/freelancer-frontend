@@ -386,15 +386,15 @@ export const useFreelancerAPI = ({ bidderType,autoBidType }) => {
       }
     } else if (type === 'fixed') {
       // Fixed-Price Projects
-      if (minBudget >= 200 && maxBudget <= 900) {
-        console.log(`Project ${project.id} is fixed-price with budget between $200 and $500. Bidding maximum: ${maxBudget}`);
-        return maxBudget; // Bid the maximum amount for budgets between $200 and $500
+      if (minBudget >= 30 && maxBudget >= 200) {
+        console.log(`Project ${project.id} is fixed-price with budget between $100 and $900. Bidding maximum: ${maxBudget}`);
+        return maxBudget; // Bid the maximum amount for budgets between $100 and $900
       } else if (maxBudget > 1000) {
         console.log(`Project ${project.id} is fixed-price with budget > $1,000. Bidding minimum: ${minBudget}`);
         return minBudget; // Bid the minimum amount for budgets > $1,000
-      } else if (maxBudget < 200) {
-        console.log(`Project ${project.id} is fixed-price with budget < $200. Skipping.`);
-        return null; // Skip projects with budgets < $200
+      } else if (maxBudget < 100) {
+        console.log(`Project ${project.id} is fixed-price with budget < $100. Skipping.`);
+        return null; // Skip projects with budgets < $100
       }
     }
 
