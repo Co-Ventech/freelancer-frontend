@@ -57,9 +57,9 @@ export const NotificationProvider = ({ children }) => {
     return id;
   }, [shouldPersist]);
 
-  const addSuccess = useCallback((title, message) => add({ type: 'success', title, message }), [add]);
-  const addError = useCallback((title, message) => add({ type: 'error', title, message }), [add]);
-  const addInfo = useCallback((title, message) => add({ type: 'info', title, message }), [add]);
+  const addSuccess = useCallback((title, message, projectData = null) => add({ type: 'success', title, message, projectData }), [add]);
+  const addError = useCallback((title, message, projectData = null) => add({ type: 'error', title, message, projectData }), [add]);
+  const addInfo = useCallback((title, message, projectData = null) => add({ type: 'info', title, message, projectData }), [add]);
 
   const markRead = useCallback((id) => {
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));

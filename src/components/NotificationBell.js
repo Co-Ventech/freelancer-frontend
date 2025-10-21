@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useModal } from '../contexts/ModalContext';
+import ProjectDetailsModal from './ProjectDetailsModal';
 
 const formatTime = (ts) => {
   const diff = Date.now() - ts;
@@ -14,6 +16,7 @@ const formatTime = (ts) => {
 
 const NotificationBell = () => {
   const { items, unreadCount, markRead, markAllRead, remove } = useNotifications();
+  const { modalState, openModal, closeModal } = useModal();
   const [open, setOpen] = useState(false);
 
   const grouped = useMemo(() => items, [items]);
@@ -89,6 +92,14 @@ const NotificationBell = () => {
                   </div>
                   <div style={{ color: '#495057', fontSize: 14 }}>{n.message}</div>
                   <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                    {n.projectData && (
+                      <button 
+                        onClick={() => openModal('projectDetails', n.projectData)} 
+                        style={{ border: '1px solid #dee2e6', background: 'white', color: '#28a745', cursor: 'pointer', padding: '6px 10px', borderRadius: 6 }}
+                      >
+                        View
+                      </button>
+                    )}
                     {!n.read && (
                       <button onClick={() => markRead(n.id)} style={{ border: '1px solid #dee2e6', background: 'white', color: '#0d6efd', cursor: 'pointer', padding: '6px 10px', borderRadius: 6 }}>Mark as read</button>
                     )}
@@ -99,6 +110,14 @@ const NotificationBell = () => {
             ))
           )}
         </div>
+      )}
+      
+      {/* Project Details Modal */}
+      {modalState.isOpen && modalState.type === 'projectDetails' && (
+        <ProjectDetailsModal 
+          projectData={modalState.data} 
+          onClose={closeModal} 
+        />
       )}
     </div>
   );
