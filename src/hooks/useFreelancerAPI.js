@@ -166,7 +166,7 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
 
       // Filter projects based on the conditions
       projects = projects.filter((project) => {
-        const { currency, budget, location, NDA } = project;
+        const { currency, budget, location, NDA, title } = project;
 
         // Determine owner id (owner_id or owner.id)
         const ownerId = project.owner_id || project.owner?.id || project.user_id || null;
@@ -189,6 +189,10 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
           return false;
         }
 
+        if(/^[^\u0000-\u007F]/.test(title)){
+          return false
+        }
+
         // Exclude projects with currency = "INR"
         if ((currency?.code || '').toUpperCase() === 'INR') {
           return false;
@@ -200,22 +204,22 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
           return false;
         }
         // Exclude projects with NDA = true
-      if (NDA === true || project.upgrades?.NDA === true) {
-  console.log(`Project ${project.id} is an NDA project. Skipping.`);
-  return false;
-}
+        if (NDA === true || project.upgrades?.NDA === true) {
+          console.log(`Project ${project.id} is an NDA project. Skipping.`);
+          return false;
+        }
 
-// Exclude projects with NDA, nonpublic, or sealed = true
-const upgrades = project.upgrades || {};
-if (
-  NDA === true ||
-  upgrades.NDA === true ||
-  upgrades.nonpublic === true ||
-  upgrades.sealed === true
-) {
-  console.log(`Project ${project.id} is excluded due to NDA/nonpublic/sealed. Skipping.`);
-  return false;
-}
+        // Exclude projects with NDA, nonpublic, or sealed = true
+        const upgrades = project.upgrades || {};
+        if (
+          NDA === true ||
+          upgrades.NDA === true ||
+          upgrades.nonpublic === true ||
+          upgrades.sealed === true
+        ) {
+          console.log(`Project ${project.id} is excluded due to NDA/nonpublic/sealed. Skipping.`);
+          return false;
+        }
 
         return true;
       });
@@ -325,25 +329,36 @@ if (
             }
           );
 
-          console.log(`Bid placed successfully for project ${project.id}`);
-          showSuccess(`AutoBid: Bid placed for #${project.id}`);
-          const titleText = (project?.title || '').trim();
-          const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
+          if (bidResponse.status === 200) {
+            console.log(`Bid placed successfully for project ${project.id}`);
+            showSuccess(`AutoBid: Bid placed for #${project.id}`);
+            const titleText = (project?.title || '').trim();
+            const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
 
-          // Create notification with project data for View button
-          const projectData = {
-            id: project.id,
-            title: titleText,
-            description: project.description || 'No description available',
-            amount: bidAmount,
-            currency: project.currency?.code || 'USD',
-            currencySign: project.currency?.sign || '$'
-          };
+            // Create notification with project data for View button
+            const projectData = {
+              id: project.id,
+              title: titleText,
+              description: project.description || 'No description available',
+              amount: bidAmount,
+              currency: project.currency?.code || 'USD',
+              currencySign: project.currency?.sign || '$'
+            };
 
-          notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`, projectData);
+            notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`, projectData);
 
-          // Save bid history
-          await saveBidHistory({ bidderType: "auto", description: proposal, projectTitle: project.title, projectDescription: project.description, budget: project?.budget, amount: bidResponse?.data.amount });
+            // Save bid history
+            await saveBidHistory({
+              bidderType: "auto",
+              description: proposal,
+              projectTitle: project.title,
+              projectDescription: project.description,
+              budget: project?.budget,
+              amount: bidAmount,
+              period: 5,
+            });
+          }
+
 
           // Add a 30-second delay before placing the next bid
           console.log(`Waiting 20 seconds before placing the next bid...`);
@@ -397,7 +412,7 @@ if (
         console.log(`Project ${project.id} is hourly with rate ≤ $10/hour. Bidding maximum: ${maxBudget}`);
         return maxBudget; // Bid the maximum amount for rates ≤ $10/hour
       }
-    } 
+    }
     else if (type === 'fixed') {
       // Fixed-Price Projects
       if (minBudget >= 30 && maxBudget >= 200) {
@@ -406,7 +421,7 @@ if (
       } else if (minBudget >= 250 && maxBudget <= 900) {
         console.log(`Project ${project.id} is fixed-price with budget between $250 and $900. Bidding maximum: ${maxBudget}`);
         return maxBudget; // Bid the maximum amount for budgets between $200 and $500
-      }else if (maxBudget > 1000) {
+      } else if (maxBudget > 1000) {
         console.log(`Project ${project.id} is fixed-price with budget > $1,000. Bidding minimum: ${minBudget}`);
         return minBudget; // Bid the minimum amount for budgets > $1,000
       } else {
@@ -421,6 +436,7 @@ if (
 
   const saveBidHistory = async ({ projectId, amount, period, description, bidderType, projectDescription, projectTitle, budget }) => {
     const bidderId = await getUserInfo();
+    console.log(period, amount)
     try {
       const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
         project_id: projectId,
