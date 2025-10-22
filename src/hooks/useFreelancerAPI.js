@@ -5,6 +5,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getUnixTimestamp } from '../utils/dateUtils';
+import { saveBidHistory } from '../utils/saveBidHistory';
 
 
 export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
@@ -166,7 +167,7 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
 
       // Filter projects based on the conditions
       projects = projects.filter((project) => {
-        const { currency, budget, location, NDA, title } = project;
+        const { currency, budget, NDA, title } = project;
 
         // Determine owner id (owner_id or owner.id)
         const ownerId = project.owner_id || project.owner?.id || project.user_id || null;
@@ -189,7 +190,7 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
           return false;
         }
 
-        if(/^[^\u0000-\u007F]/.test(title)){
+        if (/^[^\u0000-\u007F]/.test(title)) {
           return false
         }
 
@@ -346,12 +347,15 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
             };
 
             notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`, projectData);
-
+            const bidderId= await getUserInfo();
             // Save bid history
             await saveBidHistory({
               bidderType: "auto",
+              bidderId: bidderId,
               description: proposal,
               projectTitle: project.title,
+              projectType: project.type,
+              projectId: project.id,
               projectDescription: project.description,
               budget: project?.budget,
               amount: bidAmount,
@@ -434,27 +438,6 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
     return null; // Skip projects that do not meet any criteria
   };
 
-  const saveBidHistory = async ({ projectId, amount, period, description, bidderType, projectDescription, projectTitle, budget }) => {
-    const bidderId = await getUserInfo();
-    console.log(period, amount)
-    try {
-      const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
-        project_id: projectId,
-        bidder_id: bidderId,
-        amount,
-        projectDescription: projectDescription,
-        projectTitle: projectTitle,
-        period,
-        description,
-        bidder_type: bidderType,
-        budget
-      });
-
-      console.log(`Bid history saved for project ${projectId}:`, response.data);
-    } catch (err) {
-      console.error(`Failed to save bid history for project ${projectId}:`, err);
-    }
-  };
 
   return {
     projects,

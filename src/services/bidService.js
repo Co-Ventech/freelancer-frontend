@@ -183,7 +183,7 @@ class BidService {
       
       if (error.response) {
         const s = error.response.status;
-        const message= error.response.message;
+        const errorMessage= error.response.message;
         const d = error.response.data;
         
         console.error(`❌ API Error ${s}:`, d);
@@ -191,7 +191,7 @@ class BidService {
         if (s === 401) {
           message = 'Authentication failed. Check your API token or account permissions.';
         } else if (s === 403) {
-          message = message;
+          message = errorMessage;
         } else if (s === 400) {
           message = d?.message || 'Invalid bid data. Please check your bid parameters.';
         } else if (s === 429) {
