@@ -9,50 +9,47 @@ import {
   import { doc, setDoc, getDoc } from "firebase/firestore";
   import { auth, db } from "../config/firebase";
   
+
+  
   class FirebaseAuthService {
     // Register new user
-    async register(email, password, name) {
-      try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-        // Update profile with name
-        await updateProfile(user, {
-          displayName: name
-        });
-        
-        // Store additional user data in Firestore
-        await setDoc(doc(db, "users", user.uid), {
-          uid: user.uid,
-          name: name,
-          email: email,
-          createdAt: new Date().toISOString(),
-          freelancerAccounts: [],
-          preferences: {
-            skills: [],
-            minBudget: 50,
-            maxBudget: 2000,
-            autoStart: false,
-            maxBidsPerDay: 10
-          }
-        });
-        
-        return {
-          success: true,
-          user: {
-            uid: user.uid,
-            email: user.email,
-            name: name
-          }
-        };
-      } catch (error) {
-        return {
-          success: false,
-          error: error.message
-        };
-      }
-    }
+  async register(email, password, name, role = 'user') {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    await updateProfile(user, {
+      displayName: name
+    });
+
+    // Store user data with role
+    await setDoc(doc(db, "users", user.uid), {
+      uid: user.uid,
+      name: name,
+      email: email,
+      role: role, // 'admin' or 'user'
+      createdAt: new Date().toISOString(),
+      freelancerAccounts: [],
     
+    });
+
+    return {
+      success: true,
+      user: {
+        uid: user.uid,
+        email: user.email,
+        name: name,
+        role: role
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
     // Login user
     async login(email, password) {
       try {

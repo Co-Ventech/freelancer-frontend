@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+
 // import React, { createContext, useContext, useState } from 'react';
 import firebaseAuthService from '../services/firebaseAuth';
 
-const AuthContext = createContext();
+export const AuthContext = React.createContext();
 
 
 const AVAILABLE_USERS = {
@@ -61,6 +62,27 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+   // Register wrapper — ensure register is exposed to components
+ const register = async (email, password, name) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Use firebaseAuthService.register if available; adjust if your service uses a different method name
+      if (typeof firebaseAuthService.register === 'function') {
+        await firebaseAuthService.register(email, password, name);
+      } else if (typeof firebaseAuthService.createUser === 'function') {
+        await firebaseAuthService.createUser(email, password, name);
+      } else {
+        throw new Error('Registration method not implemented in firebaseAuthService');
+      }
+    } catch (err) {
+      setError(err.message || 'Registration failed');
+      throw err; // rethrow so forms can handle the error if needed
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const creds = resolveCredsForUser(currentUser);
     setToken(creds.token);
@@ -82,6 +104,7 @@ export const AuthProvider = ({ children }) => {
     bidderId,
     login,
     switchUser,
+    register,
     availableUsers: AVAILABLE_USERS,
   };
 

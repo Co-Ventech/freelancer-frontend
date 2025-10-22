@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import FetchButton from './components/FetchButton';
 import ProjectList from './components/ProjectList';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import { useFreelancerAPI } from './hooks/useFreelancerAPI';
-import { useModal } from './contexts/ModalContext';
+import { ModalProvider, useModal } from './contexts/ModalContext';
 import { useBidding } from './hooks/useBidding';
-import { useAuth } from './contexts/AuthContext';
-import { useFirebaseAuth } from './contexts/FirebaseAuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { FirebaseAuthProvider, useFirebaseAuth } from './contexts/FirebaseAuthContext';
 import ProposalModal from './components/ProposalModal';
 import NotificationBell from './components/NotificationBell';
-import { useNavigate } from 'react-router-dom';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import AdminDashboard from './components/AdminDashboard';
 import SuccessBidsPage from './components/SuccessBidsPage';
+import { useNavigate } from 'react-router-dom';
+
 
 
 const MainApp = () => {
@@ -49,7 +51,7 @@ const MainApp = () => {
       if (!loading) {
         fetchRecentProjects();
       }
-    }, 30000); // 30,000 ms = 30 seconds
+    }, 20000); // 20,000 ms = 20 seconds
 
     return () => clearInterval(interval);
   }, [fetchRecentProjects, loading]);
@@ -283,6 +285,8 @@ const MainApp = () => {
   );
 };
 
+
+
 /**
  * Auth Gate Component
  */
@@ -306,12 +310,35 @@ const AuthGate = () => {
   );
 };
 
+const ProtectedRoute = ({ children, requireAdmin = false }) => {
+  const { user: fbUser, loading } = useFirebaseAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!fbUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Check admin role
+  if (requireAdmin && fbUser.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
 /**
  * Main App with Firebase Auth Gate
  */
 function App() {
   // Gate on Firebase auth; keep token switching in AuthContext separate
-  const { user: fbUser, loading: fbLoading } = useFirebaseAuth();
+  const { user: fbUser, loading: fbLoading, isAdmin } = useFirebaseAuth();
 
   if (fbLoading) {
     return (
@@ -332,24 +359,74 @@ function App() {
     );
   }
 
-  return (
-
-    <Router>
-      <ErrorBoundary>
-        {fbUser ? (
-          <Routes>
-            <Route path="/" element={<MainApp />} />
-            <Route path="/bids" element={<SuccessBidsPage />} />
-          </Routes>
-        ) : (
-          <AuthGate />
-        )}
-      </ErrorBoundary>
-    </Router>
-    // <ErrorBoundary>
-    //   {fbUser ? <MainApp /> : <AuthGate />}
-    // </ErrorBoundary>
+return (
+    <ErrorBoundary>
+      <Router>
+        <FirebaseAuthProvider>
+          <AuthProvider>
+            <ModalProvider>
+              <Routes>
+                <Route path="/login" element={<LoginForm />} />
+                <Route path="/register" element={<RegisterForm />} />
+                
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <MainApp />
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/success-bids"
+                  element={
+                    <ProtectedRoute>
+                      <SuccessBidsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute requireAdmin={true}>
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </ModalProvider>
+          </AuthProvider>
+        </FirebaseAuthProvider>
+      </Router>
+    </ErrorBoundary>
   );
+  // return (
+
+  //   <Router>
+  //     <ErrorBoundary>
+  //    {fbUser ? (
+  //         <Routes>
+          
+          
+  //           <Route path="/" element={isAdmin ? <AdminDashboard /> : <MainApp />} />
+          
+  //           <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />} />
+  //           <Route path="/bids" element={<SuccessBidsPage />} />
+  //           <Route path="*" element={<Navigate to={isAdmin ? "/admin" : "/"} replace />} />
+  //         </Routes>
+  //       ) : (
+  //         <AuthGate />
+  //       )}
+  //     </ErrorBoundary>
+  //   </Router>
+  //   // <ErrorBoundary>
+  //   //   {fbUser ? <MainApp /> : <AuthGate />}
+  //   // </ErrorBoundary>
+  // );
 }
 
 export default App;
