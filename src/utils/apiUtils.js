@@ -44,6 +44,9 @@
 //   LAST_FETCH: 'last_fetch_time'
 // };
 
+
+import axios from 'axios';
+
 /**
  * Builds query parameters for Freelancer API
  * @param {Object} params - Parameters object
@@ -190,6 +193,21 @@ export const getApiHeaders = (includeAuth = false, token = null) => {
   }
   
   return headers;
+};
+
+
+
+export const API_BASE = process.env.REACT_APP_API_BASE_URL || '';
+
+/**
+ * GET /bids
+ * returns array of saved bid records (response.data.data)
+ */
+export const getBids = async () => {
+  const url = `${API_BASE}/bids`;
+  const res = await axios.get(url);
+  // backend returns { status, data } where data is the array
+  return res?.data?.data || [];
 };
 
 // export const getApiHeaders = (includeAuth = false, token = null) => {

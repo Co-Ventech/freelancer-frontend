@@ -3,6 +3,7 @@ import { PROPOSAL_STORAGE_PREFIX } from '../utils/apiUtils';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { getGeneralProposal } from '../constants/general-proposal';
+import { saveBidHistory } from '../utils/saveBidHistory';
 
 const ProposalModal = ({
   open,
@@ -53,7 +54,7 @@ const ProposalModal = ({
         setAmount(String(calculatedAmount));
       }
     }
-  }, [open,budget, error, calculatedAmount, isAmountEdited, amount]);
+  }, [open, budget, error, calculatedAmount, isAmountEdited, amount]);
 
   const fetchProposal = async () => {
     setLoadingProposal(true);
@@ -75,7 +76,9 @@ const ProposalModal = ({
         name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
       });
 
-      setProposal(response.data.proposal || 'Failed to generate proposal.');
+      if(response.status===200){
+        setProposal(response.data.proposal);
+      }
     } catch (err) {
       console.error('Error generating proposal:', err);
       setProposal('Failed to generate proposal.');
@@ -125,17 +128,30 @@ const ProposalModal = ({
       });
 
       // Save bid history
-      await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
-        project_id: projectId,
-        bidder_id: bidderId,
+      // await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
+      //   project_id: projectId,
+      //   bidder_id: bidderId,
+      //   amount: Number(amount),
+      //   type: 
+      //   period: Number(period),
+      //   description: proposal,
+      //   projectDescription: projectDescription,
+      //   projectTitle: projectTitle,
+      //   budget: budget,
+      //   bidder_type: "manual"
+      // });
+      await saveBidHistory({
+        projectId,
+        bidderId,
         amount: Number(amount),
+        projectType: type,
         period: Number(period),
         description: proposal,
         projectDescription: projectDescription,
         projectTitle: projectTitle,
-        budget: budget,
-        bidder_type: "manual"
-      });
+        budget,
+        bidderType: "manual"
+      })
 
 
       onClose?.();
@@ -203,14 +219,14 @@ const ProposalModal = ({
                     className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     value={amount}
                     onChange={(e) => {
-                      if (!isAmountEdited) 
+                      if (!isAmountEdited)
                         setIsAmountEdited(true);
                       setAmount(e.target.value);
                     }}
                   />
-                   {calculatedAmount === null && budget && (budget.maximum || budget.minimum) && (
+                  {calculatedAmount === null && budget && (budget.maximum || budget.minimum) && (
                     <div className="text-xs text-gray-500 mt-1">
-                       Prefilled with project max: ${budget.maximum ?? budget.minimum}. You can edit this value.
+                      Prefilled with project max: ${budget.maximum ?? budget.minimum}. You can edit this value.
                     </div>
                   )}
                 </div>

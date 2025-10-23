@@ -207,7 +207,7 @@ const LoginForm = () => {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-gray-600">
+        {/* <p className="mt-4 text-center text-gray-600">
           Don't have an account?{' '}
           <button
             onClick={() => navigate('/register')}
@@ -215,7 +215,7 @@ const LoginForm = () => {
           >
             Register
           </button>
-        </p>
+        </p> */}
       </div>
     </div>
   );

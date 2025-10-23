@@ -33,8 +33,6 @@ const ProjectCard = ({ project, bidderType }) => {
   // Use preview_description if description is null, or fallback to default
   const projectDescription = description || preview_description || 'No description available';
 
-    const clientReview = users?.reputation?.entire_history?.overall || 'No reviews yet';
-
   // Format currency information
   const currencyCode = currency?.code || 'USD';
   const currencySign = currency?.sign || '$';
@@ -67,6 +65,43 @@ const ProjectCard = ({ project, bidderType }) => {
 
   // Check if user has already bid on this project
   const hasAlreadyBid = bidService.hasBidOnProject(id);
+
+
+  const getClientReview = (proj) => {
+    if (!proj) return null;
+
+    const paths = [
+      proj.users?.reputation?.entire_history?.overall,
+      proj.users?.reputation?.last3months?.overall,
+      proj.users?.reputation?.last12months?.overall,
+
+      proj.owner?.reputation?.entire_history?.overall,
+      proj.owner?.reputation?.last3months?.overall,
+      proj.owner?.reputation?.last12months?.overall,
+
+      proj.owner?.profile?.reputation?.entire_history?.overall,
+      proj.owner?.profile?.reputation?.last3months?.overall,
+      proj.owner?.profile?.reputation?.last12months?.overall,
+
+      proj.user?.reputation?.entire_history?.overall,
+      proj.user?.reputation?.last3months?.overall,
+      proj.user?.reputation?.last12months?.overall,
+    ];
+
+    for (const v of paths) {
+      if (typeof v === 'number' && !Number.isNaN(v)) {
+        // treat 0 or near-zero as "no reviews"
+        if (v > 0) return v;
+        return null;
+      }
+    }
+
+    return null;
+  };
+
+  const clientReview = getClientReview(project);
+
+
 
     // Handle opening bid modal
   const handleOpenBid = () => {
@@ -185,10 +220,10 @@ const ProjectCard = ({ project, bidderType }) => {
           </div>
         </div>
            {/* Client Review */}
-        <div className="bg-gray-50 p-2 rounded-lg mb-4">
+       <div className="bg-gray-50 p-2 rounded-lg mb-4">
           <span className="text-gray-500 block text-xs">Client Review</span>
           <span className="font-medium text-gray-900 text-sm">
-            {typeof clientReview === 'number' ? `${clientReview} / 5` : clientReview}
+            {typeof clientReview === 'number' ? `${clientReview.toFixed(1)} / 5` : 'No reviews yet'}
           </span>
         </div>
       </div>

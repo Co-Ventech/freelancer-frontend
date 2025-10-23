@@ -11,6 +11,7 @@ import { useBidding } from './hooks/useBidding';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { FirebaseAuthProvider, useFirebaseAuth } from './contexts/FirebaseAuthContext';
 import ProposalModal from './components/ProposalModal';
+import { NotificationProvider } from './contexts/NotificationContext';
 import NotificationBell from './components/NotificationBell';
 import AdminDashboard from './components/AdminDashboard';
 import SuccessBidsPage from './components/SuccessBidsPage';
@@ -58,6 +59,7 @@ const MainApp = () => {
 
   // Automatically place bids when AutoBid is enabled and cooldown is false
   useEffect(() => {
+    console.log(autoBidEnabled, projects.length)
     if (autoBidEnabled && projects.length > 0) {
       console.log("Checking Project for Autobid: ",projects.length)
       autoPlaceBids();
@@ -364,11 +366,13 @@ return (
       <Router>
         <FirebaseAuthProvider>
           <AuthProvider>
+            <NotificationProvider>
             <ModalProvider>
               <Routes>
                 <Route path="/login" element={<LoginForm />} />
                 <Route path="/register" element={<RegisterForm />} />
-                
+                {/* <Route path="/sussess-bids" element={<SuccessBidsPage />} /> */}
+                  <Route path="/bids" element={<SuccessBidsPage />} />
                 <Route
                   path="/"
                   element={
@@ -378,14 +382,14 @@ return (
                   }
                 />
                 
-                <Route
+                {/* <Route
                   path="/success-bids"
                   element={
                     <ProtectedRoute>
                       <SuccessBidsPage />
                     </ProtectedRoute>
                   }
-                />
+                /> */}
                 
                 <Route
                   path="/admin"
@@ -399,6 +403,7 @@ return (
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </ModalProvider>
+            </NotificationProvider>
           </AuthProvider>
         </FirebaseAuthProvider>
       </Router>
