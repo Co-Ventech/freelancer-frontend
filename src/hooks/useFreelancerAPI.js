@@ -354,6 +354,7 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
               bidderId: bidderId,
               description: proposal,
               projectTitle: project.title,
+              url: project.seo_url,
               projectType: project.type,
               projectId: project.id,
               projectDescription: project.description,
