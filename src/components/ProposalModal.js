@@ -15,6 +15,7 @@ const ProposalModal = ({
   budgetDisplay,
   type,
   budget,
+  url,
   calculateBidAmount,
   initialPeriod = 5,
 }) => {
@@ -150,6 +151,7 @@ const ProposalModal = ({
         projectDescription: projectDescription,
         projectTitle: projectTitle,
         budget,
+        url,
         bidderType: "manual"
       })
 

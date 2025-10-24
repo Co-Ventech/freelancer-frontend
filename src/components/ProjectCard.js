@@ -406,6 +406,7 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
       {/* Proposal Modal */}
       <ProposalModal
         open={isModalOpen}
+        url={seo_url}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmitBid}
         projectId={project.id}
