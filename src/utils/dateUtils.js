@@ -52,3 +52,35 @@ export const formatCurrency = (amount, currency = 'USD') => {
     return `${currency} ${amount}`;
   }
 };
+
+/**
+ * formatPakistanDate - convert an ISO/UTC date string to Pakistan time string
+ * and format as "DD/MM/YYYY, hh:mm:ss AM/PM" (defaults to 12-hour).
+ *
+ * @param {string|Date} isoDate - ISO date string or Date object (UTC or local).
+ * @param {object} opts - options:
+ *    { boolean hour12 } - true for 12-hour format (default true)
+ *    { string locale } - locale for formatting (default 'en-GB' -> dd/mm/yyyy)
+ * @returns {string} formatted date-time in Pakistan timezone or empty string on bad input
+ */
+export function formatPakistanDate(isoDate, opts = {}) {
+  const { hour12 = true, locale = 'en-GB' } = opts;
+  if (!isoDate) return '';
+
+  // Ensure we have a Date object
+  const date = (isoDate instanceof Date) ? isoDate : new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return ''; // invalid date
+
+  const options = {
+    timeZone: 'Asia/Karachi',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: !!hour12
+  };
+
+  return new Intl.DateTimeFormat(locale, options).format(date);
+}

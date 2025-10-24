@@ -5,7 +5,7 @@ import { isProjectNew } from '../utils/apiUtils';
 /**
  * ProjectList component - renders a grid of project cards
  */
-const ProjectList = ({ projects, loading, error, lastFetchTime, newCount, oldCount, bidderType }) => {
+const ProjectList = ({ projects, loading, error, lastFetchTime, newCount, oldCount, bidderType, usersMap }) => {
   // live clock (ms) to update "time since last fetch"
   const [nowMs, setNowMs] = useState(Date.now());
 
@@ -137,7 +137,7 @@ const ProjectList = ({ projects, loading, error, lastFetchTime, newCount, oldCou
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {newProjects.map((project) => (
-              <ProjectCard key={project.id || Math.random()} project={project} bidderType={bidderType}/>
+              <ProjectCard key={project.id || Math.random()} project={project} bidderType={bidderType} usersMap={usersMap} />
             ))}
           </div>
         )}
@@ -156,7 +156,7 @@ const ProjectList = ({ projects, loading, error, lastFetchTime, newCount, oldCou
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {oldProjects.map((project) => (
-              <ProjectCard key={project.id || Math.random()} project={project} />
+              <ProjectCard key={project.id || Math.random()} project={project} usersMap={usersMap} />
             ))}
           </div>
         )}

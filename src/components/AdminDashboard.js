@@ -3,12 +3,13 @@ import { useFirebaseAuth } from '../contexts/FirebaseAuthContext';
 import { useNavigate } from 'react-router-dom';
 import firebaseAuthService from '../services/firebaseAuth';
 import axios from 'axios';
+import { formatPakistanDate } from '../utils/dateUtils';
 import { useNotifications } from '../contexts/NotificationContext';
 
 const API_BASE = process.env.REACT_APP_API_BASE_URL || '';
 
 const AdminDashboard = () => {
-  const { user, logout,isAdmin } = useFirebaseAuth();
+  const { user, logout, isAdmin } = useFirebaseAuth();
   const navigate = useNavigate();
   const { items: myNotifications, unreadCount, markRead, markAllRead, remove, getAllPersistedNotifications } = useNotifications();
 
@@ -21,6 +22,7 @@ const AdminDashboard = () => {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingBids, setLoadingBids] = useState(true);
   const [error, setError] = useState(null);
+  
 
   // view mode: 'grid' or 'list'
   const [viewMode, setViewMode] = useState('grid');
@@ -81,6 +83,34 @@ const AdminDashboard = () => {
       setLoadingUsers(false);
     }
   };
+  // Add this helper function near the top of your component (after state declarations)
+  const badgeClass = {
+    bidder: 'bg-blue-100 text-blue-800 border-blue-300',
+    period: 'bg-orange-100 text-orange-800 border-orange-300',
+    bidType: 'bg-purple-100 text-purple-800 border-purple-300',
+    projectType: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    budget: {
+      
+      low: 'bg-green-100 text-green-800 border-green-300',      // < $100
+      medium: 'bg-yellow-100 text-yellow-800 border-yellow-300', // $100-$500
+      high: 'bg-red-100 text-red-800 border-red-300',           // > $500
+    }
+  };
+
+  const getBidAmountBadgeClass = (amount) => {
+  if (!amount) return 'bg-gray-100 text-gray-800 border-gray-300'; // N/A case
+  if (amount <= 50) return 'bg-green-100 text-green-800 border-green-300';      // Low bid
+  if (amount > 100) return 'bg-yellow-100 text-yellow-800 border-yellow-300';  // Medium bid
+  return 'bg-red-100 text-red-800 border-yellow-300';                             // High bid
+};
+  // Helper function to determine budget color based on amount
+  const getBudgetBadgeClass = (min, max) => {
+    const amount = max ||  0;
+    if (amount <= 50) return badgeClass.budget.low;
+    if (amount >= 50) return badgeClass.budget.high;
+    return badgeClass.budget.high;
+  };
+
 
   const buildBidsUrl = () => {
     const params = [];
@@ -111,6 +141,11 @@ const AdminDashboard = () => {
   const handleLogout = async () => {
     await logout();
     navigate('/login');
+  };
+
+  const getBidDate = (bid) => {
+    const formatted = formatPakistanDate(bid.date);
+    return formatted;
   };
 
   const getBidderName = (id) => {
@@ -259,12 +294,15 @@ const AdminDashboard = () => {
                       <h3 className="text-lg font-semibold">{bid.projectTitle}</h3>
                       <div className="text-xs text-gray-500 mt-1">{(bid.type || '').toUpperCase()}</div>
                     </div>
-                    <div className="font-medium text-gray-800">${bid.amount ?? 'N/A'}</div>
+<div className={`px-3 py-1.5 rounded-lg font-semibold border inline-block ${getBidAmountBadgeClass(bid.amount)}`}>
+  ${bid.amount ?? 'N/A'}
+</div>
+                    {/* <div className="font-medium text-gray-800">${bid.amount ?? 'N/A'}</div> */}
                   </div>
 
                   <p className="text-sm text-gray-600 mt-2 line-clamp-3">{bid.projectDescription}</p>
 
-                  {/* new: proposal/description */}
+                  {/* proposal/description */}
                   <div className="mt-2 text-sm text-gray-700">
                     <div className="text-xs text-gray-500">Proposal</div>
                     <div className="mt-1 text-sm text-gray-600 line-clamp-3">
@@ -273,32 +311,82 @@ const AdminDashboard = () => {
                   </div>
 
                   {/* new: budget display */}
+
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                    <span className="px-2 py-1 bg-gray-50 rounded">Bidder: {getBidderName(bid.bidder_id)}</span>
-                    <span className="px-2 py-1 bg-gray-50 rounded">Period: {bid.period ?? 'N/A'}d</span>
+                    <span
+                      className={`px-2 py-1 rounded font-semibold border ${badgeClass.bidder}`}
+                      title="Bidder Name"
+                    >
+                      Bidder: {getBidderName(bid.bidder_id)}
+                    </span>
+
+                    <span
+                      className={`px-2 py-1 rounded font-semibold border ${badgeClass.period}`}
+                      title="Project Duration"
+                    >
+                      Period: {bid.period ?? 'N/A'}d
+                    </span>
+
+                    <span
+                      className={`px-2 py-1 rounded font-semibold border ${badgeClass.bidType}`}
+                      title="Bidder Type"
+                    >
+                      Bid Type: {bid.bidder_type || 'N/A'}
+                    </span>
+
+                    <span
+                      className={`px-2 py-1 rounded font-semibold border ${badgeClass.projectType}`}
+                      title="Project Type"
+                    >
+                      Project Type: {(bid.type || 'N/A').toUpperCase()}
+                    </span>
+
+                    <span
+                      className={`px-2 py-1 rounded font-semibold border ${getBudgetBadgeClass(bid.budget?.minimum, bid.budget?.maximum)}`}
+                      title="Project Budget Range"
+                    >
+                      Budget: {bid.budget?.minimum != null ? `$${bid.budget.minimum}` : '-'} - {bid.budget?.maximum != null ? `$${bid.budget.maximum}` : '-'}
+                    </span>
+                  </div>
+  <div className="px-2 py-1 bg-gray-50 rounded text-green-600">
+      Date: {getBidDate(bid)}
+    </div>
+
+
+                  {/* <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    <span className="px-2 py-1 bg-gray-50 rounded color green">Bidder: {getBidderName(bid.bidder_id)}</span>
+                    <span className="px-2 py-1 bg-gray-50 rounded color orange">Period: {bid.period ?? 'N/A'}d</span>
                     <span className="px-2 py-1 bg-gray-50 rounded">Bid Type: {bid.bidder_type || 'N/A'}</span>
                     <span className="px-2 py-1 bg-gray-50 rounded">Project Type: {(bid.type || 'N/A').toUpperCase()}</span>
                     <span className="px-2 py-1 bg-gray-50 rounded">
                       Budget: {bid.budget?.minimum != null ? `$${bid.budget.minimum}` : '-'} - {bid.budget?.maximum != null ? `$${bid.budget.maximum}` : '-'}
                     </span>
-                  </div>
+                  </div> */}
 
                   <div className="mt-3 flex-1">
                     <div className="text-sm text-gray-500 mb-2">Scores</div>
                     <div className="grid grid-cols-2 gap-2 text-sm">
-                      {bid.scores ? Object.entries(bid.scores).slice(0, 8).map(([k, v]) => (
-                        <div key={k} className="flex justify-between bg-gray-50 px-2 py-1 rounded">
-                          <span className="text-xs">{k.replace(/_/g, ' ')}</span>
-                          <span className="font-medium text-xs">{typeof v === 'number' ? v : String(v)}</span>
-                        </div>
-                      )) : <div className="text-xs text-gray-400">No scores</div>}
+              {bid.scores ? Object.entries(bid.scores).slice(0, 8).map(([k, v]) => {
+                        const formatScore = (val) => {
+                          if (val == null) return '-';
+                          if (typeof val !== 'number') return String(val);
+                          // show two decimal digits for non-integers, keep integers without trailing .00
+                          return Number.isInteger(val) ? String(val) : val.toFixed(2);
+                        };
+                        return (
+                          <div key={k} className="flex justify-between bg-gray-50 px-2 py-1 rounded">
+                            <span className="text-xs">{k.replace(/_/g, ' ')}</span>
+                            <span className="font-medium text-xs">{formatScore(v)}</span>
+                          </div>
+                        );
+                      }) : <div className="text-xs text-gray-400">No scores</div>}
                     </div>
                   </div>
 
-                  {/* <div className="mt-3 flex gap-2">
-                    <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(bid))} className="flex-1 px-2 py-1 bg-gray-100 rounded">Copy</button>
-                    <button onClick={() => window.open(`${API_BASE}/projects/${bid.project_id}`, '_blank')} className="flex-1 px-2 py-1 bg-blue-600 text-white rounded">View</button>
-                  </div> */}
+                  <div className="mt-3 flex gap-2">
+                    {/* <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(bid))} className="flex-1 px-2 py-1 bg-gray-100 rounded">Copy</button> */}
+                    <button onClick={() => window.open(`https://www.freelancer.com/projects/${bid.url}`, '_blank')} className="flex-1 px-2 py-1 bg-blue-600 text-white rounded">View Project </button>
+                  </div>
                 </div>
               );
             })}

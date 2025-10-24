@@ -13,10 +13,51 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
   const { showSuccess, showError, showInfo } = useToast();
   const { addSuccess: notifySuccess, addError: notifyError, addInfo: notifyInfo } = useNotifications();
   const [projects, setProjects] = useState([]);
+  const [usersMapState, setUsersMapState] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [cooldown, setCooldown] = useState(false); // Cooldown state
   const [skillsCache, setSkillsCache] = useState({});
+
+    // Countries to completely exclude from fetch/display/auto-bid
+  const EXCLUDED_COUNTRIES = [
+    'pakistan',
+    'india',
+    'bangladesh',
+    'indonesia',
+    'algeria',
+    'egypt',
+    'nepal'
+  ];
+
+    const normalize = (s) => (s || '').toString().trim().toLowerCase();
+
+  const isExcludedCountry = (countryName) => {
+    if (!countryName) return false;
+    const n = normalize(countryName);
+    return EXCLUDED_COUNTRIES.some((c) => n.includes(c) || c.includes(n));
+  };
+
+  // robust owner country extraction with fallbacks
+  const getOwnerCountry = (project, usersMap = {}) => {
+    const ownerId = project.owner_id ?? project.owner?.id ?? project.user_id ?? null;
+    let owner = undefined;
+
+    if (ownerId != null) {
+      // usersMap keys might be numbers or strings; try both
+      owner = usersMap[ownerId] || usersMap[String(ownerId)] || usersMap[Number(ownerId)];
+    }
+    owner = owner || project.owner || project.user || project.users?.[Object.keys(project.users || {})[0]];
+
+    const country =
+      owner?.location?.country?.name ||
+      owner?.profile?.location?.country?.name ||
+      project.location?.country?.name ||
+      '';
+
+    return country;
+  };
+
 
   const handleApiError = (error) => {
     if (error.response) {
@@ -139,10 +180,14 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
       const storedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
       if (storedProjects) {
         const parsedProjects = JSON.parse(storedProjects);
-        setProjects(parsedProjects);
+        const filtered = (Array.isArray(parsedProjects) ? parsedProjects : []).filter((proj) => {
+          const country = getOwnerCountry(proj);
+          return !isExcludedCountry(country);
+        });
+        setProjects(filtered);
         const savedFetch = localStorage.getItem(STORAGE_KEYS.LAST_FETCH);
         if (savedFetch) setLastFetchTime(parseInt(savedFetch, 10));
-        return parsedProjects;
+        return filtered;
       }
     } catch (error) {
       console.error('Error loading projects from storage:', error);
@@ -168,27 +213,14 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
       // Filter projects based on the conditions
       projects = projects.filter((project) => {
         const { currency, budget, NDA, title } = project;
-
-        // Determine owner id (owner_id or owner.id)
-        const ownerId = project.owner_id || project.owner?.id || project.user_id || null;
-        const owner = ownerId ? usersMap[ownerId] : undefined;
-
-
-        // Try several possible location paths (owner, owner.profile, project)
-        const ownerCountry =
-          owner?.location?.country?.name ||
-          owner?.profile?.location?.country?.name ||
-          project.location?.country?.name ||
-          '';
-
-
-        const ownerCountryNormalized = (ownerCountry || '').toString().trim().toLowerCase();
-
-        // Exclude projects where owner country includes "india"
-        if (ownerCountryNormalized.includes('india')) {
-          console.log(`Skipping project ${project.id} - owner country is ${ownerCountry}`);
+             // owner country exclusion
+        const ownerCountry = getOwnerCountry(project, usersMap);
+        if (isExcludedCountry(ownerCountry)) {
+          console.log(`Hiding project ${project.id} from UI - owner country: ${ownerCountry}`);
           return false;
         }
+  const ownerId = project.owner_id || project.owner?.id || project.user_id || null;
+    
 
         if (/^[^\u0000-\u007F]/.test(title)) {
           return false
@@ -225,7 +257,11 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
         return true;
       });
 
-      setProjects(projects);
+  setUsersMapState(usersMap);
+  setProjects(projects);
+   
+      try { localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects)); } catch (e) { /* ignore */ }
+
       console.log(`Fetched ${projects.length} projects for user ${currentUser}`);
     } catch (err) {
       const errorMessage = handleApiError(err);
@@ -420,11 +456,11 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
     else if (type === 'fixed') {
       // Fixed-Price Projects
       if (minBudget >= 30 && maxBudget >= 200) {
-        console.log(`Project ${project.id} is fixed-price with budget between $30 and $250. Bidding maximum: ${maxBudget}`);
-        return maxBudget; // Bid the maximum amount for budgets between $200 and $500
+        console.log(`Project ${project.id} is fixed-price with budget between $30 and $250. Bidding minimum: ${minBudget}`);
+        return minBudget; // Bid the minimum amount for budgets between $30 to >200
       } else if (minBudget >= 250 && maxBudget <= 900) {
-        console.log(`Project ${project.id} is fixed-price with budget between $250 and $900. Bidding maximum: ${maxBudget}`);
-        return maxBudget; // Bid the maximum amount for budgets between $200 and $500
+        console.log(`Project ${project.id} is fixed-price with budget between $250 and $900. Bidding minimum: ${minBudget}`);
+        return minBudget; // Bid the minimum amount for budgets between $250 and $900
       } else if (maxBudget > 1000) {
         console.log(`Project ${project.id} is fixed-price with budget > $1,000. Bidding minimum: ${minBudget}`);
         return minBudget; // Bid the minimum amount for budgets > $1,000
@@ -447,6 +483,7 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
     loadProjectsFromStorage,
     autoPlaceBids,
     calculateBidAmount,
+    usersMap: usersMapState,
 
   };
 };

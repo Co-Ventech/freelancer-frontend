@@ -39,6 +39,7 @@ const MainApp = () => {
     newCount,
     autoPlaceBids,
     oldCount,
+    usersMap,
 
   } = useFreelancerAPI({ bidderType: autoBidEnabled ? 'auto' : 'manual', autoBidType });
 
@@ -272,6 +273,7 @@ const MainApp = () => {
           projects={projects}
           newCount={newCount}
           oldCount={oldCount}
+          usersMap={usersMap}
         />
       </div>
 

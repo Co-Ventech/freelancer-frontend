@@ -8,7 +8,7 @@ import { useFreelancerAPI } from '../hooks/useFreelancerAPI';
 /**
  * ProjectCard component - renders a single project in a card format
  */
-const ProjectCard = ({ project, bidderType }) => {
+const ProjectCard = ({ project, bidderType,usersMap= null }) => {
   const { loading, error, success, placeBid, clearError } = useBidding();
   const { calculateBidAmount } = useFreelancerAPI({bidderType}); 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,6 +32,60 @@ const ProjectCard = ({ project, bidderType }) => {
 
   // Use preview_description if description is null, or fallback to default
   const projectDescription = description || preview_description || 'No description available';
+
+  // --- Owner / client country extraction (uses optional usersMap prop first) ---
+  const getOwnerCountry = (proj) => {
+    if (!proj) return null;
+
+    const ownerId = proj.owner_id ?? proj.owner?.id ?? proj.user_id ?? null;
+
+    // prefer usersMap prop from parent, otherwise use project.users or common fallback globals
+    const mapCandidates = [
+      usersMap,
+      proj.users,
+      proj._users,
+      proj.users_map,
+      // sometimes you may attach a global users object; try it if present
+      typeof window !== 'undefined' ? window.__SF_USERS : undefined,
+      {}
+    ];
+
+    let resolvedOwner = null;
+    for (const map of mapCandidates) {
+      if (!map || typeof map !== 'object') continue;
+      // direct key match
+      resolvedOwner = map[ownerId] || map[String(ownerId)] || map[Number(ownerId)];
+      if (resolvedOwner) break;
+      // try scanning entries if keys are different
+      const keys = Object.keys(map || {});
+      if (keys.length > 0 && !resolvedOwner) {
+        for (const k of keys) {
+          const u = map[k];
+          if (u && (u.id === ownerId || String(u.id) === String(ownerId))) {
+            resolvedOwner = u;
+            break;
+          }
+        }
+      }
+    }
+
+    // final fallbacks
+    resolvedOwner = resolvedOwner || proj.owner || proj.user || (proj.users && proj.users[Object.keys(proj.users)[0]]) || null;
+
+    const country =
+      resolvedOwner?.location?.country?.name ||
+      resolvedOwner?.profile?.location?.country?.name ||
+      proj.location?.country?.name ||
+      null;
+
+    return country ? String(country).trim() : null;
+  };
+
+
+
+  const ownerCountry = getOwnerCountry(project);
+  // --- end country extraction ---
+// ...existing code...
 
   // Format currency information
   const currencyCode = currency?.code || 'USD';
@@ -200,6 +254,13 @@ const ProjectCard = ({ project, bidderType }) => {
               {bidperiod !== 'N/A' ? `${bidperiod} days` : 'N/A'}
             </span>
           </div>
+        </div>
+              {/* Client Country */}
+       <div className="bg-gray-50 p-2 rounded-lg mb-4">
+          <span className="text-gray-500 block text-xs">Client Country</span>
+          <span className="font-medium text-gray-900 text-sm">
+            {ownerCountry || 'N/A'}
+          </span>
         </div>
 
               {/* Currency Information */}
