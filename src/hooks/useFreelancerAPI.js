@@ -332,20 +332,54 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
             continue;
           }
 
-          console.log(`Generating proposal for project ${project.id}...`);
-          const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
-            id: project.id,
-            title: project.title,
-            description: project.description || 'No description available',
-            name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
-          });
+          // console.log(`Generating proposal for project ${project.id}...`);
+          // const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
+          //   id: project.id,
+          //   title: project.title,
+          //   description: project.description || 'No description available',
+          //   name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
+          // });
 
-          if (!response.data || !response.data.proposal) {
-            console.error(`Failed to generate proposal for project ${project.id}. Response:`, response.data);
+          // if (!response.data || !response.data.proposal) {
+          //   console.error(`Failed to generate proposal for project ${project.id}. Response:`, response.data);
+          //   continue;
+          // }
+
+          // const proposal = response.data.proposal;
+
+
+          let response;
+         try {
+            // allow non-2xx responses through so we can inspect status and body
+            response = await axios.post(
+              `${process.env.REACT_APP_API_BASE_URL}/generate-proposal`,
+              {
+                id: project.id,
+                title: project.title,
+                description: project.description || 'No description available',
+                name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
+              },
+              { validateStatus: () => true }
+            );
+          } catch (err) {
+            console.error(`Network error generating proposal for project ${project.id}:`, err);
+            showError(`Proposal generation failed for #${project.id}: network error`);
+            notifyError('Proposal generation failed', `#${project.id}: network error`);
+            continue;
+          }
+
+          // Only proceed when the endpoint returned HTTP 200 and a proposal
+          if (response.status !== 200 || !response.data || !response.data.proposal) {
+            const msg = response?.data?.message || `Status ${response.status}`;
+            console.error(`Proposal generation failed for project ${project.id}. ${msg}`, response?.data);
+            showError(`Proposal generation failed for #${project.id}: ${msg}`);
+            notifyError('Proposal generation failed', `#${project.id}: ${msg}`);
             continue;
           }
 
           const proposal = response.data.proposal;
+           console.log(`Proposal generated for project ${project.id}:`, proposal);
+
           console.log(`Proposal generated for project ${project.id}:`, proposal);
 
           console.log(`Placing bid for project ${project.id} with amount ${bidAmount}...`);
