@@ -403,6 +403,7 @@ const AdminDashboard = () => {
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Bid Type</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Amount</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Period</th>
+                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Link</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -414,6 +415,14 @@ const AdminDashboard = () => {
                     <td className="px-4 py-3 text-sm">{bid.bidder_type}</td>
                     <td className="px-4 py-3 text-sm">${bid.amount ?? 'N/A'}</td>
                     <td className="px-4 py-3 text-sm">{bid.period ?? 'N/A'}d</td>
+                    <td className="px-4 py-3 text-sm">
+                      <button
+                        onClick={() => window.open(`https://www.freelancer.com/projects/${bid.url}`, '_blank', 'noopener,noreferrer')}
+                        className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+                      >
+                        View
+                     </button>
+                   </td>
                   </tr>
                 ))}
               </tbody>
