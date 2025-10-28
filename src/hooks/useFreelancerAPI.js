@@ -6,7 +6,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getUnixTimestamp } from '../utils/dateUtils';
 import { saveBidHistory } from '../utils/saveBidHistory';
-
+import { getGeneralProposal } from '../constants/general-proposal';
 
 export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
   const { token, currentUser } = useAuth();
@@ -26,8 +26,10 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
     'bangladesh',
     'indonesia',
     'algeria',
+    'nigeria',
     'egypt',
-    'nepal'
+    'nepal',
+    'israel'
   ];
 
     const normalize = (s) => (s || '').toString().trim().toLowerCase();
@@ -145,6 +147,8 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
         user_responsiveness: true, // Include user responsiveness
         user_portfolio_details: true, // Include user portfolio details
         user_reputation: true, // Include user reputation
+        user_employer_reputation: true, // Include user employer reputation
+        status: true,
         'languages[]': 'en'
 
       };
@@ -278,6 +282,11 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
       return;
     }
 
+       // Configurable requirements for quick-apply / auto-bid
+    const MIN_EMPLOYER_RATING = 4; // default: 4 (4+)
+    const REQUIRE_INTEGER_RATING = false; // set true to reject decimals like 4.5
+
+    
     const nowUnix = Math.floor(Date.now() / 1000);
     const recentProjects = projects.filter((project) => {
       if (!project.submitdate) {
@@ -290,6 +299,38 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
         console.log(`Project ${project.id} is not recent. Skipping.`);
         return false;
       }
+
+           // Resolve owner from usersMapState or project.users / project.owner fallbacks
+      const ownerId = project.owner_id ?? project.owner?.id ?? project.user_id ?? null;
+      let owner = null;
+      if (ownerId != null) {
+        owner = usersMapState?.[ownerId] || usersMapState?.[String(ownerId)] || usersMapState?.[Number(ownerId)];
+      }
+      owner = owner || project.users?.[ownerId] || (project.users && project.users[Object.keys(project.users)[0]]) || project.owner || project.user || null;
+
+           // Only allow auto-bid when owner meets verification + rating requirements
+      const employerOverall = owner?.employer_reputation?.entire_history?.overall;
+      const paymentVerified = owner?.status?.payment_verified === true || owner?.status?.payment_verified === 'true';
+      const emailVerified = owner?.status?.email_verified === true || owner?.status?.email_verified === 'true';
+
+      if (typeof employerOverall === 'number' || paymentVerified ) {
+        // optionally require integer rating (reject 4.5 etc) or accept decimals
+        const passesRating = REQUIRE_INTEGER_RATING
+          ? Number.isInteger(employerOverall) && employerOverall >= MIN_EMPLOYER_RATING
+          : employerOverall >= MIN_EMPLOYER_RATING;
+
+        if (passesRating) {
+          console.log(`Auto-bid allowed for project ${project.id} (owner ${ownerId}) — rep ${employerOverall}, payment_verified=${paymentVerified}, email_verified=${emailVerified}`);
+          return true;
+        } else {
+          console.log(`Owner for project ${project.id} failed rating requirement: ${employerOverall}`);
+          return false;
+        }
+      } else {
+        // owner missing data or not verified
+        console.log(`Owner for project ${project.id} is not verified or has no employer rating. payment_verified=${paymentVerified}, email_verified=${emailVerified}, rating=${employerOverall}`);
+        return false;
+      };
 
       const bidCount = project.bid_stats?.bid_count || 0;
       if (bidCount >= 50) {
@@ -347,40 +388,47 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
 
           // const proposal = response.data.proposal;
 
+                   // Decide between AI-generated proposal or general static proposal
+          const useAiProposal = localStorage.getItem('AUTO_BID_USE_AI') === 'true';
 
-          let response;
-         try {
-            // allow non-2xx responses through so we can inspect status and body
-            response = await axios.post(
-              `${process.env.REACT_APP_API_BASE_URL}/generate-proposal`,
-              {
-                id: project.id,
-                title: project.title,
-                description: project.description || 'No description available',
-                name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
-              },
-              { validateStatus: () => true }
-            );
-          } catch (err) {
-            console.error(`Network error generating proposal for project ${project.id}:`, err);
-            showError(`Proposal generation failed for #${project.id}: network error`);
-            notifyError('Proposal generation failed', `#${project.id}: network error`);
-            continue;
+                  let proposal;
+          if (useAiProposal) {
+            let response;
+            try {
+              // allow non-2xx responses through so we can inspect status and body
+              response = await axios.post(
+                `${process.env.REACT_APP_API_BASE_URL}/generate-proposal`,
+                {
+                  id: project.id,
+                  title: project.title,
+                  description: project.description || 'No description available',
+                  name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
+                },
+                { validateStatus: () => true }
+              );
+            } catch (err) {
+              console.error(`Network error generating proposal for project ${project.id}:`, err);
+              showError(`Proposal generation failed for #${project.id}: network error`);
+              notifyError('Proposal generation failed', `#${project.id}: network error`);
+              continue;
+            }
+
+            // Only proceed when the endpoint returned HTTP 200 and a proposal
+            if (response.status !== 200 || !response.data || !response.data.proposal) {
+              const msg = response?.data?.message || `Status ${response.status}`;
+              console.error(`Proposal generation failed for project ${project.id}. ${msg}`, response?.data);
+              showError(`Proposal generation failed for #${project.id}: ${msg}`);
+              notifyError('Proposal generation failed', `#${project.id}: ${msg}`);
+              continue;
+            }
+
+            proposal = response.data.proposal;
+          } else {
+            // Use general proposal text (no API call)
+            proposal = getGeneralProposal(currentUser === "DEFAULT" ? "Zubair Alam" : currentUser);
           }
 
-          // Only proceed when the endpoint returned HTTP 200 and a proposal
-          if (response.status !== 200 || !response.data || !response.data.proposal) {
-            const msg = response?.data?.message || `Status ${response.status}`;
-            console.error(`Proposal generation failed for project ${project.id}. ${msg}`, response?.data);
-            showError(`Proposal generation failed for #${project.id}: ${msg}`);
-            notifyError('Proposal generation failed', `#${project.id}: ${msg}`);
-            continue;
-          }
-
-          const proposal = response.data.proposal;
-           console.log(`Proposal generated for project ${project.id}:`, proposal);
-
-          console.log(`Proposal generated for project ${project.id}:`, proposal);
+          console.log(`Using proposal for project ${project.id}:`, useAiProposal ? 'AI' : 'GENERAL');
 
           console.log(`Placing bid for project ${project.id} with amount ${bidAmount}...`);
           const bidResponse = await axios.post(
@@ -490,14 +538,14 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
     }
     else if (type === 'fixed') {
       // Fixed-Price Projects
-      if (minBudget >= 30 && maxBudget >= 200) {
+      if (minBudget >= 30 && maxBudget >= 250) {
         console.log(`Project ${project.id} is fixed-price with budget between $30 and $250. Bidding minimum: ${minBudget}`);
         return minBudget; // Bid the minimum amount for budgets between $30 to >200
-      } else if (minBudget >= 250 && maxBudget <= 900) {
+      } else if (minBudget > 250 && maxBudget <= 900) {
         console.log(`Project ${project.id} is fixed-price with budget between $250 and $900. Bidding minimum: ${minBudget}`);
         return minBudget; // Bid the minimum amount for budgets between $250 and $900
       } else if (maxBudget > 1000) {
-        console.log(`Project ${project.id} is fixed-price with budget > $1,000. Bidding minimum: ${minBudget}`);
+        console.log(`Proj ect ${project.id} is fixed-price with budget > $1,000. Bidding minimum: ${minBudget}`);
         return minBudget; // Bid the minimum amount for budgets > $1,000
       } else {
         console.log(`Project ${project.id} is fixed-price with budget < $200. Skipping.`);

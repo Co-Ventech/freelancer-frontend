@@ -16,6 +16,7 @@ export const saveBidHistory = async ({ url, projectId, bidderId, projectType, am
             bidder_type: bidderType,
             budget,
             date: new Date().toISOString()
+
         });
 
         console.log(`Bid history saved for project ${projectId}:`, response.data);

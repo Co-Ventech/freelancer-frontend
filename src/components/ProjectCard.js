@@ -102,6 +102,7 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
       ? `${currencySign}${budgetMin || budgetMax}`
       : 'N/A';
 
+
       
   // Format submit date
   const formattedDate = submitdate ? formatUnixToPakistanTime(submitdate) : 'N/A';
@@ -109,6 +110,7 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
   // Get bid count
   const bidCount = bid_stats?.bid_count || 0;
 
+ const isPaymentVerified = users?.[project.owner_id]?.status?.payment_verified || `N/A`;
   // Truncate description
   const truncatedDescription = projectDescription && projectDescription.length > 150
     ? `${projectDescription.substring(0, 150)}...` 
@@ -124,27 +126,42 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
   const getClientReview = (proj) => {
     if (!proj) return null;
 
-    const paths = [
-      proj.users?.reputation?.entire_history?.overall,
-      proj.users?.reputation?.last3months?.overall,
-      proj.users?.reputation?.last12months?.overall,
+    const ownerId = proj.owner_id ?? proj.owner?.id ?? proj.user_id ?? null;
 
-      proj.owner?.reputation?.entire_history?.overall,
-      proj.owner?.reputation?.last3months?.overall,
-      proj.owner?.reputation?.last12months?.overall,
+    // Try to resolve owner user object (prefer usersMap prop, then proj.users)
+    const candidateMaps = [usersMap, proj.users, proj._users, proj.users_map];
 
-      proj.owner?.profile?.reputation?.entire_history?.overall,
-      proj.owner?.profile?.reputation?.last3months?.overall,
-      proj.owner?.profile?.reputation?.last12months?.overall,
+    let owner = null;
+    for (const map of candidateMaps) {
+      if (!map || typeof map !== 'object') continue;
+      owner = map[ownerId] || map[String(ownerId)] || map[Number(ownerId)];
+      if (owner) break;
+      // scan entries if keys are different
+      for (const k of Object.keys(map || {})) {
+        const u = map[k];
+        if (u && (u.id === ownerId || String(u.id) === String(ownerId))) {
+          owner = u;
+          break;
+        }
+      }
+     if (owner) break;
+    }
 
-      proj.user?.reputation?.entire_history?.overall,
-      proj.user?.reputation?.last3months?.overall,
-      proj.user?.reputation?.last12months?.overall,
+    // fallback to other common owner locations
+    owner = owner || proj.owner || proj.user || (proj.users && proj.users[Object.keys(proj.users)[0]]) || null;
+
+    const overallPaths = [
+      owner?.employer_reputation?.entire_history?.overall,
+      owner?.employer_reputation?.last3months?.overall,
+      owner?.employer_reputation?.last12months?.overall,
+      owner?.profile?.reputation?.entire_history?.overall,
+      owner?.profile?.reputation?.last3months?.overall,
+      owner?.profile?.reputation?.last12months?.overall,
     ];
 
-    for (const v of paths) {
+    for (const v of overallPaths) {
       if (typeof v === 'number' && !Number.isNaN(v)) {
-        // treat 0 or near-zero as "no reviews"
+        // treat zero as "no reviews" — change to v >= 0 if you want to show 0.0
         if (v > 0) return v;
         return null;
       }
@@ -279,6 +296,12 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
               {currencyCode} ({currencySign}) - {currencyName}
             </span>
           </div>
+        
+         {/* Payment Verified */}
+         <span className="text-gray-500 block text-xs mt-2">Payment Verified</span>
+          <span className="font-medium text-gray-900 text-sm">
+            {isPaymentVerified === true ? 'Yes' : isPaymentVerified === false ? 'No' : 'N/A'}
+          </span>
         </div>
            {/* Client Review */}
        <div className="bg-gray-50 p-2 rounded-lg mb-4">
@@ -287,6 +310,8 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
             {typeof clientReview === 'number' ? `${clientReview.toFixed(1)} / 5` : 'No reviews yet'}
           </span>
         </div>
+       
+        
       </div>
 
       {/* Footer */}

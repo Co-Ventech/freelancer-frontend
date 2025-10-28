@@ -29,6 +29,13 @@ const MainApp = () => {
   const autoBidEnabled = !!autoBidEnabledMap[currentUser];
   const [autoBidType, setAutoBidType] = useState('all');
 
+  const [useAiProposal, setUseAiProposal] = useState(() => {
+    try { return localStorage.getItem('AUTO_BID_USE_AI') === 'true'; } catch { return true; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('AUTO_BID_USE_AI', useAiProposal ? 'true' : 'false'); } catch {}
+  }, [useAiProposal]);
   const {
     projects,
     loading,
@@ -145,6 +152,17 @@ const MainApp = () => {
           </label>
 
         </div>
+
+                {/* Auto-bid proposal source toggle */}
+       <label className="ml-3 flex items-center text-sm">
+          <input
+            type="checkbox"
+            checked={useAiProposal}
+            onChange={(e) => setUseAiProposal(e.target.checked)}
+            className="mr-2"
+          />
+          <span>Use AI proposals for AutoBid</span>
+        </label>
 
         {/* Select Box for AutoBid Type */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
