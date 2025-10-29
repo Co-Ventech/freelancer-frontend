@@ -34,6 +34,12 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
 
     const normalize = (s) => (s || '').toString().trim().toLowerCase();
 
+      // treat project.local === true (or "true") as local; local projects must be hidden and not autobid
+  const isLocalProject = (proj) => {
+    if (!proj) return false;
+    const v = proj.local;
+    return v === true || v === 'true' || String(v).toLowerCase() === 'true';
+  };
   const isExcludedCountry = (countryName) => {
     if (!countryName) return false;
     const n = normalize(countryName);
@@ -186,7 +192,13 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
         const parsedProjects = JSON.parse(storedProjects);
         const filtered = (Array.isArray(parsedProjects) ? parsedProjects : []).filter((proj) => {
           const country = getOwnerCountry(proj);
-          return !isExcludedCountry(country);
+
+ // hide projects from excluded countries and local projects
+          if (isExcludedCountry(country)) return false;
+          if (isLocalProject(proj)) return false;
+          return true;
+
+
         });
         setProjects(filtered);
         const savedFetch = localStorage.getItem(STORAGE_KEYS.LAST_FETCH);
@@ -221,6 +233,12 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
         const ownerCountry = getOwnerCountry(project, usersMap);
         if (isExcludedCountry(ownerCountry)) {
           console.log(`Hiding project ${project.id} from UI - owner country: ${ownerCountry}`);
+          return false;
+        }
+
+          // hide local projects from UI and auto-bid
+        if (isLocalProject(project)) {
+          console.log(`Hiding project ${project.id} from UI - local project`);
           return false;
         }
   const ownerId = project.owner_id || project.owner?.id || project.user_id || null;
@@ -431,60 +449,166 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
           console.log(`Using proposal for project ${project.id}:`, useAiProposal ? 'AI' : 'GENERAL');
 
           console.log(`Placing bid for project ${project.id} with amount ${bidAmount}...`);
-          const bidResponse = await axios.post(
-            `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PLACE_BID}`,
-            {
-              project_id: project.id,
-              bidder_id: bidderId,
-              amount: bidAmount,
-              period: 5,
-              description: proposal,
-              milestone_percentage: 100,
-            },
-            {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-              },
+
+            // Retry configuration
+          const MAX_BID_RETRIES = 3;
+          const BASE_RETRY_MS = 5000; // 5s base backoff
+          let attempt = 0;
+          let bidPlaced = false;
+          let lastBidError = null;
+
+          while (attempt < MAX_BID_RETRIES && !bidPlaced) {
+            attempt += 1;
+            try {
+              const resp = await axios.post(
+                `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PLACE_BID}`,
+                {
+                  project_id: project.id,
+                  bidder_id: bidderId,
+                  amount: bidAmount,
+                  period: 5,
+                  description: proposal,
+                  milestone_percentage: 100,
+                },
+                {
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                  },
+                  validateStatus: () => true, // inspect non-2xx responses
+                }
+              );
+
+              const status = resp.status;
+              const data = resp.data || {};
+              const msg = (data.message || '').toString();
+              const code = (data.error_code || '').toString();
+              const isTooFast = /bidding too fast/i.test(msg) || code === 'ProjectExceptionCodes.BID_TOO_EARLY';
+
+              if (status === 200 && !(data?.status === 'error')) {
+                bidPlaced = true;
+                break;
+              }
+
+              // Retry on "bidding too fast" or 5xx server error
+              if ((isTooFast || status >= 500) && attempt < MAX_BID_RETRIES) {
+                lastBidError = msg || code || `Status ${status}`;
+                const waitMs = BASE_RETRY_MS * Math.pow(2, attempt - 1);
+                console.warn(`Attempt ${attempt} failed for project ${project.id}: ${lastBidError}. Retrying in ${waitMs}ms...`);
+                await delay(waitMs);
+                continue;
+              }
+
+             // Non-retryable or final failure
+              lastBidError = msg || code || `Status ${status}`;
+              break;
+            } catch (err) {
+              lastBidError = handleApiError(err);
+              if (attempt < MAX_BID_RETRIES) {
+                const waitMs = BASE_RETRY_MS * Math.pow(2, attempt - 1);
+                console.warn(`Network error placing bid for project ${project.id} (attempt ${attempt}): ${lastBidError}. Retrying in ${waitMs}ms...`);
+                await delay(waitMs);
+                continue;
+              }
+              break;
             }
-          );
-
-          if (bidResponse.status === 200) {
-            console.log(`Bid placed successfully for project ${project.id}`);
-            showSuccess(`AutoBid: Bid placed for #${project.id}`);
-            const titleText = (project?.title || '').trim();
-            const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
-
-            // Create notification with project data for View button
-            const projectData = {
-              id: project.id,
-              title: titleText,
-              description: project.description || 'No description available',
-              amount: bidAmount,
-              currency: project.currency?.code || 'USD',
-              currencySign: project.currency?.sign || '$'
-            };
-
-            notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`, projectData);
-            const bidderId= await getUserInfo();
-            // Save bid history
-            await saveBidHistory({
-              bidderType: "auto",
-              bidderId: bidderId,
-              description: proposal,
-              projectTitle: project.title,
-              url: project.seo_url,
-              projectType: project.type,
-              projectId: project.id,
-              projectDescription: project.description,
-              budget: project?.budget,
-              amount: bidAmount,
-              period: 5,
-            });
           }
+
+          if (!bidPlaced) {
+            console.error(`Failed to place bid for project ${project.id} after ${attempt} attempts: ${lastBidError}`);
+            const titleTextErr = (project?.title || '').trim();
+            const prettyErr = titleTextErr ? `#${project.id} — ${titleTextErr}` : `#${project.id}`;
+            showError(`AutoBid error on ${prettyErr}: ${lastBidError}`);
+            notifyError('Bid failed', `${prettyErr}: ${lastBidError}`);
+            continue;
+          }
+
+          // Success handling
+          console.log(`Bid placed successfully for project ${project.id}`);
+          showSuccess(`AutoBid: Bid placed for #${project.id}`);
+          const titleText = (project?.title || '').trim();
+          const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
+
+          const projectData = {
+            id: project.id,
+            title: titleText,
+            description: project.description || 'No description available',
+            amount: bidAmount,
+            currency: project.currency?.code || 'USD',
+            currencySign: project.currency?.sign || '$'
+          };
+
+          notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`, projectData);
+          // reuse outer bidderId
+          const savedBidderId = bidderId;
+          await saveBidHistory({
+            bidderType: "auto",
+            bidderId: savedBidderId,
+            description: proposal,
+            projectTitle: project.title,
+            url: project.seo_url,
+            projectType: project.type,
+            projectId: project.id,
+            projectDescription: project.description,
+            budget: project?.budget,
+            amount: bidAmount,
+            period: 5,
+          });
+          
+          // const bidResponse = await axios.post(
+          //   `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PLACE_BID}`,
+          //   {
+          //     project_id: project.id,
+          //     bidder_id: bidderId,
+          //     amount: bidAmount,
+          //     period: 5,
+          //     description: proposal,
+          //     milestone_percentage: 100,
+          //   },
+          //   {
+          //     headers: {
+          //       'Authorization': `Bearer ${token}`,
+          //     },
+          //   }
+          // );
+
+          // if (bidResponse.status === 200) {
+          //   console.log(`Bid placed successfully for project ${project.id}`);
+          //   showSuccess(`AutoBid: Bid placed for #${project.id}`);
+          //   const titleText = (project?.title || '').trim();
+          //   const pretty = titleText ? `#${project.id} — ${titleText}` : `#${project.id}`;
+
+          //   // Create notification with project data for View button
+          //   const projectData = {
+          //     id: project.id,
+          //     title: titleText,
+          //     description: project.description || 'No description available',
+          //     amount: bidAmount,
+          //     currency: project.currency?.code || 'USD',
+          //     currencySign: project.currency?.sign || '$'
+          //   };
+
+          //   notifySuccess('Bid placed', `Project ${pretty} bid submitted successfully`, projectData);
+          //   const bidderId= await getUserInfo();
+          //   // Save bid history
+          //   await saveBidHistory({
+          //     bidderType: "auto",
+          //     bidderId: bidderId,
+          //     description: proposal,
+          //     projectTitle: project.title,
+          //     url: project.seo_url,
+          //     projectType: project.type,
+          //     projectId: project.id,
+          //     projectDescription: project.description,
+          //     budget: project?.budget,
+          //     amount: bidAmount,
+          //     period: 5,
+          //   });
+          // }
+
 
 
           // Add a 30-second delay before placing the next bid
-          console.log(`Waiting 20 seconds before placing the next bid...`);
+  
           await delay(30000); // 30-second delay
         } catch (err) {
           const errorMessage = handleApiError(err);
