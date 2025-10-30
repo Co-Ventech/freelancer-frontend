@@ -8,7 +8,7 @@ import { getUnixTimestamp } from '../utils/dateUtils';
 import { saveBidHistory } from '../utils/saveBidHistory';
 import { getGeneralProposal } from '../constants/general-proposal';
 
-export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
+export const useFreelancerAPI = ({ autoBidType }) => {
   const { token, currentUser } = useAuth();
   const { showSuccess, showError, showInfo } = useToast();
   const { addSuccess: notifySuccess, addError: notifyError, addInfo: notifyInfo } = useNotifications();
@@ -16,7 +16,7 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
   const [usersMapState, setUsersMapState] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [cooldown, setCooldown] = useState(false); // Cooldown state
+  // const [cooldown, setCooldown] = useState(false); // Cooldown state
   const [skillsCache, setSkillsCache] = useState({});
 
     // Countries to completely exclude from fetch/display/auto-bid
@@ -295,10 +295,6 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
   }, [currentUser, getUserInfo, getUserSkills, getProjectsBySkills]);
 
   const autoPlaceBids = useCallback(async () => {
-    if (cooldown) {
-      console.log('Cooldown active. Skipping auto-bid.');
-      return;
-    }
 
        // Configurable requirements for quick-apply / auto-bid
     const MIN_EMPLOYER_RATING = 4; // default: 4 (4+)
@@ -344,12 +340,7 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
           console.log(`Owner for project ${project.id} failed rating requirement: ${employerOverall}`);
           return false;
         }
-      } else {
-        // owner missing data or not verified
-        console.log(`Owner for project ${project.id} is not verified or has no employer rating. payment_verified=${paymentVerified}, email_verified=${emailVerified}, rating=${employerOverall}`);
-        return false;
-      };
-
+      }
       const bidCount = project.bid_stats?.bid_count || 0;
       if (bidCount >= 50) {
         console.log(`Project ${project.id} has 50 or more bids. Skipping.`);
@@ -385,11 +376,11 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
         try {
           const bidAmount = calculateBidAmount(project);
 
-          // Skip projects that do not meet the criteria
-          if (bidAmount === null) {
-            console.log(`Skipping project ${project.id} due to bid criteria.`);
-            continue;
-          }
+          // // Skip projects that do not meet the criteria
+          // if (bidAmount === null) {
+          //   console.log(`Skipping project ${project.id} due to bid criteria.`);
+          //   continue;
+          // }
 
           // console.log(`Generating proposal for project ${project.id}...`);
           // const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
@@ -448,7 +439,7 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
 
           console.log(`Using proposal for project ${project.id}:`, useAiProposal ? 'AI' : 'GENERAL');
 
-          console.log(`Placing bid for project ${project.id} with amount ${bidAmount}...`);
+          // console.log(`Placing bid for project ${project.id} with amount ${bidAmount}...`);
 
             // Retry configuration
           const MAX_BID_RETRIES = 3;
@@ -609,7 +600,6 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
 
           // Add a 30-second delay before placing the next bid
   
-          await delay(30000); // 30-second delay
         } catch (err) {
           const errorMessage = handleApiError(err);
           console.error(`Error processing project ${project.id}:`, err);
@@ -620,11 +610,11 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
         }
       }
 
-      setCooldown(true);
-      setTimeout(() => {
-        setCooldown(false);
-        console.log('Cooldown ended. Auto-bid is now active.');
-      }, 5 * 60 * 1000); // 2-minute cooldown
+      // setCooldown(true);
+      // setTimeout(() => {
+      //   setCooldown(false);
+      //   console.log('Cooldown ended. Auto-bid is now active.');
+      // }, 5 * 60 * 1000); // 2-minute cooldown
       // showSuccess('AutoBid completed successfully');
       // notifySuccess('AutoBid completed', 'Auto-bidding run completed successfully');
     } catch (err) {
@@ -633,9 +623,7 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
       showError(`AutoBid failed: ${errorMessage}`);
       notifyError('AutoBid failed', errorMessage);
     }
-  }, [projects, token, cooldown, getUserInfo, autoBidType]);
-
-
+  }, [projects, token, getUserInfo, autoBidType]);
 
   const calculateBidAmount = (project) => {
     const { type, budget } = project;
@@ -662,23 +650,27 @@ export const useFreelancerAPI = ({ bidderType, autoBidType }) => {
     }
     else if (type === 'fixed') {
       // Fixed-Price Projects
-      if (minBudget >= 30 && maxBudget >= 250) {
-        console.log(`Project ${project.id} is fixed-price with budget between $30 and $250. Bidding minimum: ${minBudget}`);
-        return minBudget; // Bid the minimum amount for budgets between $30 to >200
-      } else if (minBudget > 250 && maxBudget <= 900) {
-        console.log(`Project ${project.id} is fixed-price with budget between $250 and $900. Bidding minimum: ${minBudget}`);
-        return minBudget; // Bid the minimum amount for budgets between $250 and $900
-      } else if (maxBudget > 1000) {
-        console.log(`Proj ect ${project.id} is fixed-price with budget > $1,000. Bidding minimum: ${minBudget}`);
-        return minBudget; // Bid the minimum amount for budgets > $1,000
-      } else {
-        console.log(`Project ${project.id} is fixed-price with budget < $200. Skipping.`);
-        return null; // Skip projects with budgets < $200
-      }
-    }
 
-    console.log(`Project ${project.id} does not meet any criteria. Skipping.`);
-    return null; // Skip projects that do not meet any criteria
+      if (minBudget >=30){
+        return minBudget;
+      }
+      // if (minBudget >= 30 && maxBudget >= 250) {
+      //   console.log(`Project ${project.id} is fixed-price with budget between $30 and $250. Bidding minimum: ${minBudget}`);
+      //   return minBudget; // Bid the minimum amount for budgets between $30 to >200
+      // } else if (minBudget > 250 && maxBudget <= 900) {
+      //   console.log(`Project ${project.id} is fixed-price with budget between $250 and $900. Bidding minimum: ${minBudget}`);
+      //   return minBudget; // Bid the minimum amount for budgets between $250 and $900
+      // } else if (maxBudget > 1000) {
+      //   console.log(`Proj ect ${project.id} is fixed-price with budget > $1,000. Bidding minimum: ${minBudget}`);
+      //   return minBudget; // Bid the minimum amount for budgets > $1,000
+      // } else {
+      //   console.log(`Project ${project.id} is fixed-price with budget < $200. Skipping.`);
+      //   return null; // Skip projects with budgets < $200
+      // }
+
+      return null; // Skip projects that do not meet any criteria
+    }
+   
   };
 
 

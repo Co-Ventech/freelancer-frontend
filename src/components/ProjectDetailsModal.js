@@ -4,6 +4,10 @@ const ProjectDetailsModal = ({ projectData, onClose }) => {
   if (!projectData) return null;
 
   const { id, title, description, amount, currency, currencySign } = projectData;
+    const seo = projectData.seo_url || projectData.seoUrl || projectData.url || null;
+  const projectUrl = seo
+    ? `https://www.freelancer.com/projects/${seo}`
+    : `https://www.freelancer.com/projects/${id}`;
 
   return (
     <div style={{
@@ -172,34 +176,61 @@ const ProjectDetailsModal = ({ projectData, onClose }) => {
           </div>
         </div>
 
-        {/* Footer */}
+         {/* Footer */}
         <div style={{
           display: 'flex',
-          justifyContent: 'flex-end',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           paddingTop: 16,
           borderTop: '1px solid #e9ecef',
         }}>
-          <button
-            onClick={onClose}
-            style={{
-              backgroundColor: '#6c757d',
-              color: 'white',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: 6,
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'background-color 0.2s',
-            }}
-            onMouseOver={(e) => e.target.style.backgroundColor = '#5a6268'}
-            onMouseOut={(e) => e.target.style.backgroundColor = '#6c757d'}
-          >
-            Close
-          </button>
+          <div>
+            <a
+              href={projectUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                backgroundColor: '#007bff',
+                color: 'white',
+                padding: '8px 12px',
+                borderRadius: 6,
+                fontSize: 14,
+                fontWeight: 500,
+                textDecoration: 'none',
+                marginRight: 12,
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0069d9'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#007bff'}
+            >
+              View on Freelancer
+            </a>
+          </div>
+
+          <div>
+            <button
+              onClick={onClose}
+              style={{
+                backgroundColor: '#6c757d',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: 6,
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = '#5a6268'}
+              onMouseOut={(e) => e.target.style.backgroundColor = '#6c757d'}
+            >
+              Close
+            </button>
+          </div>
         </div>
-      </div>
+
     </div>
+  </div>
   );
 };
 

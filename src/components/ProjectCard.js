@@ -12,6 +12,7 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
   const { loading, error, success, placeBid, clearError } = useBidding();
   const { calculateBidAmount } = useFreelancerAPI({bidderType}); 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showFullDesc, setShowFullDesc] = useState(false);
   // Extract project data with fallbacks based on the actual API response structure
   const {
     id = 'N/A',
@@ -32,6 +33,11 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
 
   // Use preview_description if description is null, or fallback to default
   const projectDescription = description || preview_description || 'No description available';
+  const DESCRIPTION_TRUNCATE_LEN = 100;
+  const isLongDescription = projectDescription && projectDescription.length > DESCRIPTION_TRUNCATE_LEN;
+  const truncatedDescription = isLongDescription
+    ? `${projectDescription.substring(0, DESCRIPTION_TRUNCATE_LEN)}...`
+    : projectDescription;
 
   // --- Owner / client country extraction (uses optional usersMap prop first) ---
   const getOwnerCountry = (proj) => {
@@ -111,10 +117,7 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
   const bidCount = bid_stats?.bid_count || 0;
 
  const isPaymentVerified = users?.[project.owner_id]?.status?.payment_verified || `N/A`;
-  // Truncate description
-  const truncatedDescription = projectDescription && projectDescription.length > 150
-    ? `${projectDescription.substring(0, 150)}...` 
-    : projectDescription;
+
 
     const nowUnix = Math.floor(Date.now() / 1000);
     const isNew = isProjectNew(submitdate, nowUnix);
@@ -251,10 +254,24 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
           {title}
         </h3>
         
-        {/* Description */}
+        {/* Description
         <p className="text-gray-600 text-sm mb-4 leading-relaxed">
           {truncatedDescription}
+        </p> */}
+
+          {/* Description */}
+        <p className="text-gray-600 text-sm mb-2 leading-relaxed">
+          {showFullDesc ? projectDescription : truncatedDescription}
         </p>
+        {isLongDescription && (
+          <button
+            onClick={() => setShowFullDesc((s) => !s)}
+            className="text-xs text-blue-600 hover:underline mb-4"
+            aria-expanded={showFullDesc}
+          >
+            {showFullDesc ? 'Show less' : 'Read more...'}
+          </button>
+        )}
         
 
         
@@ -447,193 +464,5 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
 
 export default ProjectCard;
 
-
-
-
-// import React, { useState } from 'react';
-// import { formatUnixToPakistanTime, formatCurrency } from '../utils/dateUtils';
-// import { useBidding } from '../hooks/useBidding';
-// import bidService from '../services/bidService';
-
-// /**
-//  * ProjectCard component - renders a single project in a card format
-//  */
-// const ProjectCard = ({ project }) => {
-//   const { loading, error, success, placeBid, clearError } = useBidding();
-//   const [showBidForm, setShowBidForm] = useState(false);
-  
-//   // Extract project data with fallbacks
-//   const {
-//     title = 'Untitled Project',
-//     description,
-//     budget = {},
-//     submitdate,
-//     bid_stats = {},
-//     id
-//   } = project;
-
-//   // Format budget
-//   const budgetMin = budget.minimum || 0;
-//   const budgetMax = budget.maximum || 0;
-//   const currency = budget.currency?.code || 'USD';
-  
-//   const budgetDisplay = budgetMax > budgetMin 
-//     ? `${formatCurrency(budgetMin, currency)} - ${formatCurrency(budgetMax, currency)}`
-//     : formatCurrency(budgetMin || budgetMax, currency);
-
-//   // Format submit date
-//   const formattedDate = submitdate ? formatUnixToPakistanTime(submitdate) : 'Date not available';
-
-//   // Get bid count
-//   const bidCount = bid_stats.bid_count || 0;
-
-//   // Truncate description
-//   const truncatedDescription = (description && description.length > 150)
-//     ? `${description.substring(0, 150)}...` 
-//     : (description || 'No description available');
-
-//   // Check if user has already bid on this project
-//   const hasAlreadyBid = bidService.hasBidOnProject(id);
-
-//   // Handle bid placement
-//   const handlePlaceBid = async () => {
-//     if (hasAlreadyBid) {
-//       alert('You have already placed a bid on this project.');
-//       return;
-//     }
-
-//     const result = await placeBid(
-//       id,
-//       250, // Default amount
-//       5,   // Default period (5 days)
-//       `I am interested in working on "${title}". I have the necessary skills and experience to deliver high-quality results within the specified timeframe. Let's discuss the project requirements in detail.`
-//     );
-
-//     if (result.success) {
-//       console.log('Bid response:', result.data);
-//     }
-//   };
-
-//   return (
-//     <div className="card p-6 h-full flex flex-col">
-//       {/* Header */}
-//       <div className="flex-1">
-//         <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2 leading-tight">
-//           {title}
-//         </h3>
-        
-//         {/* Description */}
-//         <p className="text-gray-600 text-sm mb-4 leading-relaxed">
-//           {truncatedDescription}
-//         </p>
-//       </div>
-
-//       {/* Footer */}
-//       <div className="mt-auto space-y-3">
-//         {/* Budget */}
-//         <div className="flex items-center justify-between">
-//           <span className="text-xs text-gray-500 uppercase tracking-wide">Budget</span>
-//           <span className="text-lg font-bold text-green-600">{budgetDisplay}</span>
-//         </div>
-
-//         {/* Stats */}
-//         <div className="flex items-center justify-between text-sm">
-//           <div className="flex items-center space-x-4">
-//             <div className="flex items-center space-x-1">
-//               <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-//                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-//               </svg>
-//               <span className="text-gray-600">{bidCount} bids</span>
-//             </div>
-//           </div>
-          
-//           <div className="text-xs text-gray-500">
-//             ID: {id}
-//           </div>
-//         </div>
-
-//         {/* Error Message */}
-//         {error && (
-//           <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-//             <div className="flex items-start space-x-2">
-//               <svg className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-//                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-//               </svg>
-//               <div className="flex-1">
-//                 <p className="text-sm text-red-600">{error}</p>
-//                 <button
-//                   onClick={clearError}
-//                   className="text-red-700 hover:text-red-800 text-xs font-medium mt-1 underline"
-//                 >
-//                   Dismiss
-//                 </button>
-//               </div>
-//             </div>
-//           </div>
-//         )}
-
-//         {/* Success Message */}
-//         {success && (
-//           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-//             <div className="flex items-center space-x-2">
-//               <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-//                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-//               </svg>
-//               <p className="text-sm text-green-600 font-medium">Bid placed successfully!</p>
-//             </div>
-//           </div>
-//         )}
-
-//         {/* Date and Bid Button */}
-//         <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-//           <div className="flex items-center space-x-1">
-//             <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-//               <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-//             </svg>
-//             <span className="text-xs text-gray-500">{formattedDate}</span>
-//           </div>
-          
-//           {/* Place Bid Button */}
-//           <button
-//             onClick={handlePlaceBid}
-//             disabled={loading || hasAlreadyBid}
-//             className={`
-//               text-xs py-2 px-4 rounded-lg font-medium transition-all duration-200 flex items-center space-x-1
-//               ${hasAlreadyBid 
-//                 ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
-//                 : loading 
-//                   ? 'bg-blue-100 text-blue-600 cursor-not-allowed' 
-//                   : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transform hover:-translate-y-0.5'
-//               }
-//             `}
-//           >
-//             {loading ? (
-//               <>
-//                 <div className="w-3 h-3 border border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-//                 <span>Placing...</span>
-//               </>
-//             ) : hasAlreadyBid ? (
-//               <>
-//                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-//                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-//                 </svg>
-//                 <span>Bid Placed</span>
-//               </>
-//             ) : (
-//               <>
-//                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-//                 </svg>
-//                 <span>Place Bid</span>
-//               </>
-//             )}
-//           </button>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default ProjectCard;
 
 
