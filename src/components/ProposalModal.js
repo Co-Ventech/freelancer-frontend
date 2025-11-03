@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { PROPOSAL_STORAGE_PREFIX } from '../utils/apiUtils';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useUsersStore } from '../store/useUsersStore';
 import { getGeneralProposal } from '../constants/general-proposal';
 import { saveBidHistory } from '../utils/saveBidHistory';
 
@@ -27,8 +28,11 @@ const ProposalModal = ({
   const [loadingProposal, setLoadingProposal] = useState(false);
   const [error, setError] = useState(null);
   const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
+  const selectedSubUser = useUsersStore.getState().getSelectedUser?.() || null;
+  const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;
   const [isAmountEdited, setIsAmountEdited] = useState(false);
   const [isAiProposalEnabled, setIsAiPropoalEnabled] = useState(false);
+   const displayName = selectedSubUser?.sub_username || selectedSubUser?.name || currentUser
   const calculatedAmount = useMemo(() => {
     return calculateBidAmount({ type, budget });
   }, [type, budget]);
@@ -70,11 +74,11 @@ const ProposalModal = ({
 
       console.log("Current User: ", currentUser)
 
-      const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
+     const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
         id: projectId,
         title: projectTitle,
         description: projectDescription,
-        name: currentUser === "DEFAULT" ? "Zubair Alam" : currentUser
+        name: displayName
       });
 
       if(response.status===200){
@@ -96,10 +100,10 @@ const ProposalModal = ({
     if (isAiProposalEnabled) {
       fetchProposal();
     } else {
-      const generalProposal = getGeneralProposal(currentUser);
+      const generalProposal = getGeneralProposal(displayName);
       setProposal(generalProposal);
     }
-  }, [isAiProposalEnabled])
+  }, [isAiProposalEnabled,displayName])
 
 
 
@@ -143,7 +147,7 @@ const ProposalModal = ({
       // });
       await saveBidHistory({
         projectId,
-        bidderId,
+        bidderId: selectedBidderId,
         amount: Number(amount),
         projectType: type,
         period: Number(period),

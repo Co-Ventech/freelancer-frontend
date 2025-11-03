@@ -16,7 +16,10 @@ import NotificationBell from './components/NotificationBell';
 import AdminDashboard from './components/AdminDashboard';
 import SuccessBidsPage from './components/SuccessBidsPage';
 import { useNavigate } from 'react-router-dom';
-
+import SubUserRegister from './components/SubUserRegister';
+import { useUsersStore } from './store/useUsersStore';
+import UserSwitcher from './components/UserSwitcher';
+// import { useFirebaseAuth } from './contexts/FirebaseAuthContext';
 
 
 const MainApp = () => {
@@ -28,10 +31,19 @@ const MainApp = () => {
   const [autoBidEnabledMap, setAutoBidEnabledMap] = useState({});
   const autoBidEnabled = !!autoBidEnabledMap[currentUser];
   const [autoBidType, setAutoBidType] = useState('all');
+    const fetchUsers = useUsersStore(state => state.fetchUsers);
+  const selectedKey = useUsersStore(state => state.selectedKey);
 
   const [useAiProposal, setUseAiProposal] = useState(() => {
     try { return localStorage.getItem('AUTO_BID_USE_AI') === 'true'; } catch { return true; }
   });
+
+
+    useEffect(() => {
+    if (fbUser?.uid) {
+      fetchUsers(fbUser.uid).catch(err => console.warn('Failed loading sub-users:', err.message));
+    }
+  }, [fbUser?.uid, fetchUsers]);
 
   useEffect(() => {
     try { localStorage.setItem('AUTO_BID_USE_AI', useAiProposal ? 'true' : 'false'); } catch {}
@@ -44,7 +56,6 @@ const MainApp = () => {
     clearError,
     retryFetch,
     newCount,
-    autoPlaceBids,
     oldCount,
     usersMap,
 
@@ -65,14 +76,14 @@ const MainApp = () => {
     return () => clearInterval(interval);
   }, [fetchRecentProjects, loading]);
 
-  // Automatically place bids when AutoBid is enabled and cooldown is false
-  useEffect(() => {
-    console.log(autoBidEnabled, projects.length)
-    if (autoBidEnabled && projects.length > 0) {
-      console.log("Checking Project for Autobid: ",projects.length)
-      autoPlaceBids();
-    }
-  }, [autoBidEnabled, projects, autoPlaceBids]);
+  // // Automatically place bids when AutoBid is enabled and cooldown is false
+  // useEffect(() => {
+  //   console.log(autoBidEnabled, projects.length)
+  //   if (autoBidEnabled && projects.length > 0) {
+  //     console.log("Checking Project for Autobid: ",projects.length)
+  //     autoPlaceBids();
+  //   }
+  // }, [autoBidEnabled, projects, autoPlaceBids]);
 
 
   // // Automatically place bids after fetching projects
@@ -202,33 +213,28 @@ const MainApp = () => {
           >
             View Bids
           </button>
+
+            <button
+            onClick={() => navigate('/subusers')}
+            style={{
+              background: '#17a2b8',
+              color: 'white',
+              border: 'none',
+              padding: '8px 12px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px'
+            }}
+          >
+            Sub-users
+          </button>
+
           <span style={{ color: '#6c757d' }}>
             Welcome, <strong>{fbUser?.displayName || fbUser?.email}</strong>!
           </span>
           {/* Account switcher */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <label htmlFor="accountSwitcher" style={{ fontSize: '12px', color: '#6c757d' }}>Account:</label>
-            <select
-              id="accountSwitcher"
-              value={currentUser || 'DEFAULT'}
-              onChange={(e) => switchUser(e.target.value)}
-              style={{
-                padding: '6px 8px',
-                borderRadius: '4px',
-                border: '1px solid #ced4da',
-                background: 'white',
-                color: '#495057',
-                fontSize: '13px'
-              }}
-            >
-              {/* Default option */}
-              <option value="DEFAULT">Zubair</option>
-              {availableUsers && Object.entries(availableUsers)
-                .filter(([key]) => key !== 'DEFAULT')
-                .map(([key, info]) => (
-                  <option key={key} value={key}>{info?.name || key}</option>
-                ))}
-            </select>
+         <UserSwitcher parentUid={fbUser?.uid} />
           </div>
           <button
             onClick={logout}
@@ -275,6 +281,9 @@ const MainApp = () => {
           </div>
         )}
 
+
+
+
         <FetchButton
           onFetch={fetchRecentProjects}
           loading={loading}
@@ -294,6 +303,8 @@ const MainApp = () => {
           usersMap={usersMap}
         />
       </div>
+
+      
 
       {modalState.isOpen && modalState.type === 'proposal' && (
         <ProposalModal
@@ -393,6 +404,15 @@ return (
                 <Route path="/register" element={<RegisterForm />} />
                 {/* <Route path="/sussess-bids" element={<SuccessBidsPage />} /> */}
                   <Route path="/bids" element={<SuccessBidsPage />} />
+
+                                <Route
+                  path="/subusers"
+                  element={
+                    <ProtectedRoute>
+                      <SubUserRegister parentUid={fbUser?.uid} />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/"
                   element={

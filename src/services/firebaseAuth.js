@@ -55,6 +55,7 @@ import {
       try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
+        const token = await user.getIdToken();
         
         // Get additional user data from Firestore
         const userDoc = await getDoc(doc(db, "users", user.uid));
