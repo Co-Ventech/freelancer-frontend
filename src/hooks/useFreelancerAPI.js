@@ -818,13 +818,16 @@ export const useFreelancerAPI = ({ autoBidType }) => {
 
 const getUserInfo = useCallback(async () => {
     const selected = useUsersStore.getState().getSelectedUser?.() || null;
+    if (!selected){
+      throw new Error('No sub-user selected. Please select an account in the User Switcher.');
+    }
 
     // prefer stored bidder id from backend
     if (selected?.user_bid_id) {
       return Number(selected.user_bid_id);
     }
 
-    const tokenToUse = selected?.sub_user_access_token || legacyToken;
+    const tokenToUse = selected?.sub_user_access_token;
     if (!tokenToUse) {
      throw new Error('No access token available for selected user.');
 }
@@ -839,7 +842,7 @@ const getUserInfo = useCallback(async () => {
       console.error('Error fetching user info:', errorMessage);
       throw new Error(errorMessage);
     }
-  }, [legacyToken]);
+  }, []);
   // memoized user-skills fetch (uses ref cache to keep stable identity)
   const getUserSkills = useCallback(async (userId) => {
     if (!userId) {

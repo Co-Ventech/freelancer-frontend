@@ -31,22 +31,35 @@ const MainApp = () => {
   const [autoBidEnabledMap, setAutoBidEnabledMap] = useState({});
   const autoBidEnabled = !!autoBidEnabledMap[currentUser];
   const [autoBidType, setAutoBidType] = useState('all');
-    const fetchUsers = useUsersStore(state => state.fetchUsers);
+  const fetchUsers = useUsersStore(state => state.fetchUsers);
   const selectedKey = useUsersStore(state => state.selectedKey);
+  const updateSubUser = useUsersStore((s) => s.updateSubUser);
+  const selectedUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
+  const [updatingSubUser, setUpdatingSubUser] = useState(false);
 
   const [useAiProposal, setUseAiProposal] = useState(() => {
     try { return localStorage.getItem('AUTO_BID_USE_AI') === 'true'; } catch { return true; }
   });
 
 
-    useEffect(() => {
-    if (fbUser?.uid) {
-      fetchUsers(fbUser.uid).catch(err => console.warn('Failed loading sub-users:', err.message));
-    }
+  useEffect(() => {
+    // only run when there is a logged-in Firebase user
+    if (!fbUser?.uid) return;
+    const _load = async () => {
+      try {
+        const idToken = typeof fbUser.getIdToken === 'function' ? await fbUser.getIdToken() : null;
+        console.log('[App] loading sub-users for parentUid:', fbUser.uid);
+        await fetchUsers(fbUser.uid, idToken);
+        console.log('[App] sub-users loaded');
+      } catch (err) {
+        console.warn('Failed loading sub-users:', err?.message || err);
+      }
+    };
+    _load();
   }, [fbUser?.uid, fetchUsers]);
 
   useEffect(() => {
-    try { localStorage.setItem('AUTO_BID_USE_AI', useAiProposal ? 'true' : 'false'); } catch {}
+    try { localStorage.setItem('AUTO_BID_USE_AI', useAiProposal ? 'true' : 'false'); } catch { }
   }, [useAiProposal]);
   const {
     projects,
@@ -132,6 +145,45 @@ const MainApp = () => {
     }
   };
 
+  // Handler for AutoBid toggle (call backend PATCH)
+  const handleToggleAutoBid = async () => {
+    if (!selectedUser) {
+      alert('Please select an account before toggling AutoBid');
+      return;
+    }
+    try {
+      const newValue = !selectedUser.autobid_enabled;
+      console.log(`Toggling autobid for ${selectedUser.sub_username} => ${newValue}`);
+      // pass document_id (or sub_user_id) and payload
+      await updateSubUser(selectedUser.document_id || selectedUser.sub_user_id || selectedUser.id, { autobid_enabled: newValue });
+      // success toast/log
+      console.log('AutoBid updated on server');
+    } catch (err) {
+      console.error('Failed to update AutoBid:', err.message || err);
+      alert('Failed to update AutoBid: ' + (err.message || 'unknown'));
+    }
+  };
+
+   const patchSelectedUser = async (payload) => {
+   if (!selectedUser) {
+     alert('Please select an account before updating settings.');
+     throw new Error('No selected sub-user');
+   }
+   setUpdatingSubUser(true);
+   try {
+     const idToken = typeof fbUser?.getIdToken === 'function' ? await fbUser.getIdToken() : null;
+     const subUserId = selectedUser.document_id || selectedUser.sub_user_id || selectedUser.id;
+     await updateSubUser(subUserId, payload, idToken);
+     console.log('Sub-user updated:', payload);
+   } catch (err) {
+     console.error('Failed to update sub-user:', err?.message || err);
+     alert('Failed to update account settings: ' + (err?.message || err));
+     throw err;
+   } finally {
+     setUpdatingSubUser(false);
+   }
+};
+
   return (
     <div className="App">
       {/* Simple header with user info and logout */}
@@ -151,26 +203,34 @@ const MainApp = () => {
           <label>
             <input
               type="checkbox"
-              checked={autoBidEnabled}
-              onChange={() =>
-                setAutoBidEnabledMap((prev) => ({
-                  ...prev,
-                  [currentUser]: !prev[currentUser]
-                }))
-              }
+              checked={selectedUser?.autobid_enabled === true}
+              onChange={handleToggleAutoBid}
             />
             Enable AutoBid
           </label>
 
         </div>
 
-                {/* Auto-bid proposal source toggle */}
+        {/* Auto-bid proposal source toggle */}
        <label className="ml-3 flex items-center text-sm">
           <input
             type="checkbox"
             checked={useAiProposal}
-            onChange={(e) => setUseAiProposal(e.target.checked)}
+            onChange={async (e) => {
+              const enabled = e.target.checked;
+              try {
+                // local UI persist
+                setUseAiProposal(enabled);
+                localStorage.setItem('AUTO_BID_USE_AI', enabled ? 'true' : 'false');
+                // update backend field: autobid_proposal_type -> 'ai'|'general'
+                await patchSelectedUser({ autobid_proposal_type: enabled ? 'ai' : 'general' });
+              } catch (err) {
+                // if backend failed, revert UI state
+                setUseAiProposal(prev => !prev);
+              }
+            }}
             className="mr-2"
+            disabled={updatingSubUser}
           />
           <span>Use AI proposals for AutoBid</span>
         </label>
@@ -181,7 +241,15 @@ const MainApp = () => {
           <select
             id="autoBidType"
             value={autoBidType}
-            onChange={(e) => setAutoBidType(e.target.value)}
+            onChange={async(e) => {
+              const val = e.target.value;
+              setAutoBidType(val);
+            try{
+              await patchSelectedUser({ autobid_enabled_for_job_type: val });
+            }
+            catch(err){
+
+            }}}
             style={{
               padding: '6px 8px',
               borderRadius: '4px',
@@ -196,6 +264,8 @@ const MainApp = () => {
             <option value="hourly">Hourly</option>
           </select>
         </div>
+         {/* optional small indicator when updating sub-user */}
+        {updatingSubUser && <div style={{ marginLeft: 12, color: '#6c757d', fontSize: 12 }}>Saving...</div>}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <NotificationBell />
@@ -214,7 +284,7 @@ const MainApp = () => {
             View Bids
           </button>
 
-            <button
+          <button
             onClick={() => navigate('/subusers')}
             style={{
               background: '#17a2b8',
@@ -234,7 +304,7 @@ const MainApp = () => {
           </span>
           {/* Account switcher */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-         <UserSwitcher parentUid={fbUser?.uid} />
+            <UserSwitcher parentUid={fbUser?.uid} />
           </div>
           <button
             onClick={logout}
@@ -304,7 +374,7 @@ const MainApp = () => {
         />
       </div>
 
-      
+
 
       {modalState.isOpen && modalState.type === 'proposal' && (
         <ProposalModal
@@ -392,37 +462,37 @@ function App() {
     );
   }
 
-return (
+  return (
     <ErrorBoundary>
       <Router>
         <FirebaseAuthProvider>
           <AuthProvider>
             <NotificationProvider>
-            <ModalProvider>
-              <Routes>
-                <Route path="/login" element={<LoginForm />} />
-                <Route path="/register" element={<RegisterForm />} />
-                {/* <Route path="/sussess-bids" element={<SuccessBidsPage />} /> */}
+              <ModalProvider>
+                <Routes>
+                  <Route path="/login" element={<LoginForm />} />
+                  <Route path="/register" element={<RegisterForm />} />
+                  {/* <Route path="/sussess-bids" element={<SuccessBidsPage />} /> */}
                   <Route path="/bids" element={<SuccessBidsPage />} />
 
-                                <Route
-                  path="/subusers"
-                  element={
-                    <ProtectedRoute>
-                      <SubUserRegister parentUid={fbUser?.uid} />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <MainApp />
-                    </ProtectedRoute>
-                  }
-                />
-                
-                {/* <Route
+                  <Route
+                    path="/subusers"
+                    element={
+                      <ProtectedRoute>
+                        <SubUserRegister parentUid={fbUser?.uid} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute>
+                        <MainApp />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* <Route
                   path="/success-bids"
                   element={
                     <ProtectedRoute>
@@ -430,19 +500,19 @@ return (
                     </ProtectedRoute>
                   }
                 /> */}
-                
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute requireAdmin={true}>
-                      <AdminDashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </ModalProvider>
+
+                  <Route
+                    path="/admin"
+                    element={
+                      <ProtectedRoute requireAdmin={true}>
+                        <AdminDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </ModalProvider>
             </NotificationProvider>
           </AuthProvider>
         </FirebaseAuthProvider>
@@ -455,10 +525,10 @@ return (
   //     <ErrorBoundary>
   //    {fbUser ? (
   //         <Routes>
-          
-          
+
+
   //           <Route path="/" element={isAdmin ? <AdminDashboard /> : <MainApp />} />
-          
+
   //           <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />} />
   //           <Route path="/bids" element={<SuccessBidsPage />} />
   //           <Route path="*" element={<Navigate to={isAdmin ? "/admin" : "/"} replace />} />

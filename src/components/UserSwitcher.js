@@ -262,6 +262,9 @@ const UserSwitcher = ({ parentUid }) => {
 
   const handleChange = (e) => {
     const key = e.target.value || null;
+    try {
+      console.log(`[UserSwitcher] switching from "${selectedKey || 'NONE'}" => "${key || 'NONE'}"`);
+    } catch{}
     selectUser(key);
     // do not force page reload; let app react to selection
   };

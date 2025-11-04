@@ -27,12 +27,18 @@ const ProposalModal = ({
   const [submitting, setSubmitting] = useState(false);
   const [loadingProposal, setLoadingProposal] = useState(false);
   const [error, setError] = useState(null);
-  const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
-  const selectedSubUser = useUsersStore.getState().getSelectedUser?.() || null;
+  // const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
+  // const selectedSubUser = useUsersStore.getState().getSelectedUser?.() || null;
+  // const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;
+ const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
+  // get selected sub-user from Zustand (reactive inside modal)
+  const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
   const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;
+  const displayName = selectedSubUser?.sub_username || selectedSubUser?.name || currentUser || 'DEFAULT';
+
   const [isAmountEdited, setIsAmountEdited] = useState(false);
   const [isAiProposalEnabled, setIsAiPropoalEnabled] = useState(false);
-   const displayName = selectedSubUser?.sub_username || selectedSubUser?.name || currentUser
+  //  const displayName = selectedSubUser?.sub_username || selectedSubUser?.name || currentUser
   const calculatedAmount = useMemo(() => {
     return calculateBidAmount({ type, budget });
   }, [type, budget]);

@@ -56,6 +56,17 @@ import {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         const token = await user.getIdToken();
+
+         // persist idToken to cookie for backend auth (used by fetchUsers and other calls)
+    try {
+        const maxAge = 60 * 60; // 1 hour
+        const secureFlag = (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:') ? '; Secure' : '';
+        // SameSite=Lax to allow navigation-based requests, path=/ to be available site-wide
+        document.cookie = `idToken=${token}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secureFlag}`;
+      } catch (cookieErr) {
+        // swallow cookie errors in environments without document
+        console.warn('Could not set idToken cookie', cookieErr);
+      }
         
         // Get additional user data from Firestore
         const userDoc = await getDoc(doc(db, "users", user.uid));
