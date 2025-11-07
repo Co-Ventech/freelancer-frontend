@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE, getAuthHeaders } from '../utils/api';
 
 const SubUserRegister = ({ parentUid, onSuccess }) => {
   const API_BASE = process.env.REACT_APP_API_BASE_URL ;
@@ -54,10 +55,10 @@ const SubUserRegister = ({ parentUid, onSuccess }) => {
       };
 
       const url = `${API_BASE}/sub-users`;
+      const authHeaders = getAuthHeaders();
+      const headers = { 'Content-Type': 'application/json', ...authHeaders };
       const resp = await axios.post(url, payload, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         validateStatus: () => true,
       });
 

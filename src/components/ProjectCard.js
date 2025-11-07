@@ -189,7 +189,7 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
     // Handle bid submission from modal
   const handleSubmitBid = async ({ amount, period, description }) => {
   try {
-    const result = await placeBid(id, amount, period, description);
+    const result = await placeBid(id, amount, period, description, seo_url, type, title, projectDescription, budget);
 
     if (result?.success) {
       console.log('Bid response:', result.data);

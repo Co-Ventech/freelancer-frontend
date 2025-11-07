@@ -8,6 +8,7 @@ import {
   } from "firebase/auth";
   import { doc, setDoc, getDoc } from "firebase/firestore";
   import { auth, db } from "../config/firebase";
+  import axios from 'axios';
   
 
   
@@ -67,6 +68,47 @@ import {
         // swallow cookie errors in environments without document
         console.warn('Could not set idToken cookie', cookieErr);
       }
+       // --- NEW: request backend access-token using Firebase idToken and persist it ---
+      try {
+        const accessRes = await axios.post(
+          `${process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:5000'}/access-token`,
+          {}, // body optional — backend usually uses Authorization header
+          { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, validateStatus: () => true }
+        );
+
+        // Accept common response shapes: { token }, { access_token }, or { data: { token } }
+        const accessToken =
+          accessRes?.data?.data?.accessToken ||
+          accessRes?.data?.data?.access_token ||
+          accessRes?.data?.token ||
+          accessRes?.data?.access_token ||
+          null;
+
+        if (accessToken) {
+          try {
+            // persist access token in cookie for backend APIs
+            const maxAge = 60 * 60 * 24 * 7; // 7 days (adjust as needed)
+            const isSecure = (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:');
+            const sameSite = isSecure ? 'None' : 'Lax';
+             const secureFlag = isSecure ? '; Secure' : '';
+               const enc = encodeURIComponent(accessToken);
+            // SameSite=None may be required for cross-site cookies; adjust per your backend CORS setup
+            document.cookie = `accessToken=${enc}; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secureFlag}`;
+            document.cookie = `access_token=${enc}; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secureFlag}`;
+            console.log('Saved access_token cookie from /access-token');
+          } catch (cErr) {
+            console.warn('Could not set access_token cookie', cErr);
+          }
+
+        } else if (accessRes && accessRes.status >= 200 && accessRes.status < 300) {
+          console.warn('access-token endpoint responded OK but no token found in body', accessRes.data);
+        } else {
+          console.warn('access-token request failed', accessRes?.status, accessRes?.data);
+        }
+      } catch (atErr) {
+        console.warn('Failed to obtain access-token from backend:', atErr?.message || atErr);
+      }
+
         
         // Get additional user data from Firestore
         const userDoc = await getDoc(doc(db, "users", user.uid));

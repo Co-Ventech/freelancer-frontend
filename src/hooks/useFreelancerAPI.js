@@ -738,7 +738,6 @@ import axios from 'axios';
 import { useUsersStore } from '../store/useUsersStore';
 import { API_CONFIG, buildQueryParams, STORAGE_KEYS } from '../utils/apiUtils';
 import { useToast } from '../contexts/ToastContext';
-import { useNotifications } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getUnixTimestamp } from '../utils/dateUtils';
 import { saveBidHistory } from '../utils/saveBidHistory';
@@ -754,7 +753,6 @@ export const useFreelancerAPI = ({ autoBidType }) => {
   const { token: legacyToken, currentUser } = useAuth();
 
   const { showSuccess, showError, showInfo } = useToast();
-  const { addSuccess: notifySuccess, addError: notifyError, addInfo: notifyInfo } = useNotifications();
   const [projects, setProjects] = useState([]);
   const [usersMapState, setUsersMapState] = useState({});
   const [loading, setLoading] = useState(false);

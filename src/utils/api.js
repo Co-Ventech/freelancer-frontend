@@ -5,6 +5,7 @@ export default API_BASE;
 
 export const ENDPOINTS = {
   SUB_USERS: '/sub-users',
+    NOTIFICATIONS: '/notifications',
 };
 
 export const buildUrl = (base, params = {}) => {
@@ -25,8 +26,18 @@ const readCookie = (name) => {
 };
 
 export const getAuthHeaders = (idToken) => {
-  const token = idToken || (typeof document !== 'undefined' ? readCookie('idToken') : null);
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // prefer explicit idToken param, otherwise fallback to cookie 'idToken'
+  const id = idToken || (typeof document !== 'undefined' ? readCookie('idToken') : null);
+  // also read backend access token cookie
+  const accessToken = (typeof document !== 'undefined' ? readCookie('access_token') : null);
+
+  const headers = {};
+  if (accessToken){ headers.Authorization = `Bearer ${accessToken}`;
+}else if (id) {
+ headers.Authorization = `Bearer ${id}`;
+}
+if (accessToken) headers['X-Access-Token'] = accessToken;
+  return headers;
 };
 
 export const getSubUsers = async (parentUid, idToken = null) => {
@@ -64,4 +75,19 @@ export const updateSubUser = async (subUserId, payload = {}, idToken = null) => 
     error.original = err;
     throw error;
   }
+};
+
+
+export const getNotifications = async (subUserId, idToken = null) => {
+  if (!subUserId) throw new Error('subUserId required to fetch notifications');
+  const url = buildUrl(`${API_BASE.replace(/\/$/, '')}${ENDPOINTS.NOTIFICATIONS}`, { sub_user_id: subUserId });
+  const headers = getAuthHeaders(idToken);
+  return axios.get(url, { headers, validateStatus: () => true });
+};
+
+
+export const postBid = async (payload = {}, idToken = null) => {
+  const url = `${API_BASE.replace(/\/$/, '')}/bid`;
+  const headers = { 'Content-Type': 'application/json', ...getAuthHeaders(idToken) };
+  return axios.post(url, payload, { headers, validateStatus: () => true });
 };
