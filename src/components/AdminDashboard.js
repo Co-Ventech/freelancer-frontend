@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import firebaseAuthService from '../services/firebaseAuth';
 import axios from 'axios';
 import { formatPakistanDate } from '../utils/dateUtils';
+import { getAuthHeaders } from '../utils/api';
 import { useNotifications } from '../contexts/NotificationContext';
+
 
 const API_BASE = process.env.REACT_APP_API_BASE_URL || '';
 
@@ -126,13 +128,18 @@ const AdminDashboard = () => {
       setLoadingBids(true);
       setError(null);
       const url = buildBidsUrl();
-      const res = await axios.get(url);
+     const headers = getAuthHeaders();
+      const res = await axios.get(url, { headers, validateStatus: () => true });
+      if (!(res.status >= 200 && res.status < 300)) {
+        const msg = res?.data?.message || `Failed to load bids: ${res.status}`;
+        throw new Error(msg);
+      }
       const bids = res?.data?.data || [];
       setSavedBids(Array.isArray(bids) ? bids : []);
     } catch (err) {
       console.error('Failed to load bids:', err);
       setSavedBids([]);
-      setError('Failed to load saved bids');
+      setError(err?.message || 'Failed to load bids');
     } finally {
       setLoadingBids(false);
     }

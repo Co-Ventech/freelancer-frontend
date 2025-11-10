@@ -9,9 +9,10 @@ import { useFreelancerAPI } from '../hooks/useFreelancerAPI';
  * ProjectCard component - renders a single project in a card format
  */
 const ProjectCard = ({ project, bidderType,usersMap= null }) => {
-  const { loading, error, success, placeBid, clearError } = useBidding();
-  const { calculateBidAmount } = useFreelancerAPI({bidderType}); 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+ const { calculateBidAmount, placeBidManual, loading: apiLoading } = useFreelancerAPI({ bidderType });
+//  const { loading: localLoading, error, success, clearError } = { loading: apiLoading, error: null, success: null, clearError: () => {} };
+ const { loading, error, success, placeBid, clearError } = useBidding();
+ const [isModalOpen, setIsModalOpen] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
   // Extract project data with fallbacks based on the actual API response structure
   const {
@@ -187,24 +188,39 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
   };
   
     // Handle bid submission from modal
-  const handleSubmitBid = async ({ amount, period, description }) => {
-  try {
-    const result = await placeBid(id, amount, period, description, seo_url, type, title, projectDescription, budget);
+ const handleSubmitBid = async ({ amount, period, description }) => {
+    try {
+      const projectMeta = {
+        seo_url,
+        type,
+        title,
+        description: projectDescription,
+        budget,
+      };
 
-    if (result?.success) {
-      console.log('Bid response:', result.data);
-      alert('Bid placed successfully!'); // Trigger alert on success
-    } else if (result?.message) {
-      console.error('Bid error:', result.message);
-      alert(`Error: ${result.message}`); // Show error message in alert
-    } else {
-      throw new Error('Failed to place bid');
+      const result = await placeBidManual({
+        projectId: id,
+        amount,
+        period,
+        description,
+        projectMeta,
+      });
+
+      if (result?.success) {
+        console.log('Bid response:', result.data);
+        alert('Bid placed successfully!');
+        // optionally record local state / mark as bid
+        bidService.recordBid(id);
+      } else {
+        const msg = result?.message || 'Failed to place bid';
+        console.error('Bid error:', msg);
+        alert(`Error: ${msg}`);
+      }
+    } catch (err) {
+      console.error('Error in handleSubmitBid:', err);
+      alert(`Error: ${err?.message || 'An unexpected error occurred'}`);
     }
-  } catch (error) {
-    console.error('Error in handleSubmitBid:', error);
-    alert(`Error: ${error.message || 'An unexpected error occurred'}`);
-  }
-};
+  };
   // Handle bid placement
   // const handlePlaceBid = async () => {
   //   if (hasAlreadyBid) {

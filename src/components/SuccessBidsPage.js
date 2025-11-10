@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { API_BASE, getAuthHeaders } from '../utils/api';
 
 const SuccessBidsPage = () => {
   const [bids, setBids] = useState([]);
@@ -29,8 +30,11 @@ const SuccessBidsPage = () => {
   useEffect(() => {
     const fetchBids = async () => {
       try {
-        const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/bids`);
-        if (response.data?.status === 200) {
+         const url = `${process.env.REACT_APP_API_BASE_URL || API_BASE}/bids`;
+        const headers = getAuthHeaders();
+        const response = await axios.get(url, { headers, validateStatus: () => true });
+
+              if (response.data?.status === 200) {
           setBids(response.data.data);
           setFilteredBids(response.data.data);
           const uniqueIds = [...new Set(response.data.data.map((bid) => String(bid.bidder_id)))];
@@ -50,7 +54,7 @@ const SuccessBidsPage = () => {
 
   // Filter bids based on selected bidder ID and bidder type
   useEffect(() => {
-    let url = `${process.env.REACT_APP_API_BASE_URL}/bids`;
+    let url = `${process.env.REACT_APP_API_BASE_URL || API_BASE}/bids`;
     let params = [];
     if (bidderIdFilter !== 'ALL') {
       params.push(`bidder_id=${bidderIdFilter}`);
@@ -66,7 +70,9 @@ const SuccessBidsPage = () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(url);
+       const headers = getAuthHeaders();
+      const response = await axios.get(url, { headers, validateStatus: () => true });
+
         if (response.data?.status === 200) {
           setFilteredBids(response.data.data);
         } else {

@@ -120,14 +120,15 @@ export const NotificationProvider = ({ children }) => {
     try {
       const raw = localStorage.getItem(storageKey);
       const parsed = raw ? JSON.parse(raw) : [];
-      const hydrated = Array.isArray(parsed) ? parsed.filter((n) => {
+      const hydrated = Array.isArray(parsed) ? parsed.map((n) => {
         if (!n.createdAt) n.createdAt = Date.now();
-        return shouldPersist(n);
-      }) : [];
+         if (typeof n.read === 'undefined') n.read = !!n.is_read;
+         return n;
+      }).filter(n => shouldPersist(n)) : [];
       setItems(hydrated);
 
-      // Initialize prevCountRef only after loading stored items so initial render won't trigger sound
-      prevCountRef.current = hydrated.length;
+         // Initialize prevCountRef to unread count so initial render won't trigger sound
+      prevCountRef.current = hydrated.filter((i) => !i.read).length;
       initialLoadedRef.current = true;
     } catch (err) {
       console.error('Failed to load notifications from storage', storageKey, err);
@@ -146,24 +147,22 @@ export const NotificationProvider = ({ children }) => {
     }
   }, [items, shouldPersist, storageKey]);
 
-  // Play sound when new notification(s) are added — only for bid-success style notifications
+  // Play sound when new UNREAD notification(s) are added — only for bid-success style notifications
   useEffect(() => {
     // Don't run until initial load for current account completed
     if (!initialLoadedRef.current) return;
 
-    const prev = typeof prevCountRef.current === 'number' ? prevCountRef.current : 0;
-    const curr = Array.isArray(items) ? items.length : 0;
+    const prevUnread = typeof prevCountRef.current === 'number' ? prevCountRef.current : 0;
+    const currUnread = Array.isArray(items) ? items.filter(i => !i.read).length : 0;
 
-    if (curr > prev) {
-      // New items are at the start (we prepend), so take the slice of newly added items
-      const newCount = curr - prev;
-      const newItems = items.slice(0, newCount);
-
-      // Only trigger sound for bid-success notifications
+    if (currUnread > prevUnread) {
+      // Determine which incoming unread items are new by checking the head of items
+      // We'll consider up to (currUnread - prevUnread) newest unread items
+      const addedCount = currUnread - prevUnread;
+      const newItems = items.filter(i => !i.read).slice(0, addedCount);
       const hasBidSuccess = newItems.some((n) => {
         if (!n) return false;
         if (n.type !== 'success') return false;
-        // Treat explicit category or recognized title as bid success
         if (n.category === 'bid_success') return true;
         if (typeof n.title === 'string' && (n.title === 'Bid placed' || n.title === 'AutoBid completed')) return true;
         return false;
@@ -173,17 +172,10 @@ export const NotificationProvider = ({ children }) => {
         try {
           audioRef.current.currentTime = 0;
           const playPromise = audioRef.current.play();
-          
           if (playPromise && typeof playPromise.then === 'function') {
-            playPromise
-              .then(() => {
-                console.log('🔔 Notification sound played successfully');
-              })
-              .catch((err) => {
-                // Autoplay might be blocked — don't treat as fatal
-                console.warn('Notification sound play prevented:', err.message);
-                console.info('💡 Click anywhere on the page to enable notification sounds');
-              });
+            playPromise.catch((err) => {
+              console.warn('Notification sound play prevented:', err.message);
+            });
           }
         } catch (err) {
           console.warn('Error playing notification sound', err);
@@ -191,22 +183,20 @@ export const NotificationProvider = ({ children }) => {
       }
     }
 
-    // Update previous count for next comparison
-    prevCountRef.current = curr;
+    // Update previous unread count for next comparison
+    prevCountRef.current = currUnread;
   }, [items]);
 
+ // Always add incoming notification to the in-memory list so NotificationBell shows it.
+  // Persist only those matching shouldPersist (persisted storage is handled in the effect below).
   const add = useCallback((notif) => {
     const id = notif.id || Math.random().toString(36).slice(2);
     const createdAt = notif.createdAt || Date.now();
     const item = { id, createdAt, read: false, ...notif };
 
-    // Only show in the bell and persist if eligible; others are toast-only
-    if (shouldPersist(item)) {
-      setItems((prev) => [item, ...prev].slice(0, 200));
-    }
-
+    setItems((prev) => [item, ...prev].slice(0, 200));
     return id;
-  }, [shouldPersist]);
+  }, []);
 
   const addSuccess = useCallback((title, message, projectData = null) => add({ type: 'success', title, message, projectData }), [add]);
   const addError = useCallback((title, message, projectData = null) => add({ type: 'error', title, message, projectData }), [add]);
@@ -248,14 +238,25 @@ export const NotificationProvider = ({ children }) => {
 
         const existingIds = new Set(itemsRef.current.map(i => i.id));
         const newItems = incoming.filter(i => !existingIds.has(i.id));
-        if (newItems.length > 0 && mounted) {
-          // trigger provider flows (sound, persistence) by using addSuccess/addInfo
-          newItems.forEach((it) => {
-            if (it.type === 'success') {
-              addSuccess(it.title, it.message, it.projectData);
-            } else {
-              addInfo(it.title, it.message, it.projectData);
-            }
+          if (newItems.length > 0 && mounted) {
+          // map incoming items to provider item shape (preserve read flag from API)
+          const mapped = newItems.map((n) => ({
+            id: n.id,
+            title: n.title || '',
+            message: n.message || n.description || '',
+            type: n.type || (n.isSuccess ? 'success' : 'info'),
+            isSuccess: !!n.isSuccess,
+            projectData: n.projectData || n.project_id ? { projectId: n.project_id } : null,
+            createdAt: n.createdAt || Date.now(),
+            read: !!n.read, // false for unread
+          }));
+
+          // prepend mapped items (dedupe by id)
+          setItems((prev) => {
+            const existing = new Set(prev.map(i => i.id));
+            const toPrepend = mapped.filter(m => !existing.has(m.id));
+            const merged = [...toPrepend, ...prev].slice(0, 200);
+            return merged;
           });
         }
       } catch (err) {
