@@ -164,25 +164,25 @@ const MainApp = () => {
     }
   };
 
-   const patchSelectedUser = async (payload) => {
-   if (!selectedUser) {
-     alert('Please select an account before updating settings.');
-     throw new Error('No selected sub-user');
-   }
-   setUpdatingSubUser(true);
-   try {
-     const idToken = typeof fbUser?.getIdToken === 'function' ? await fbUser.getIdToken() : null;
-     const subUserId = selectedUser.document_id || selectedUser.sub_user_id || selectedUser.id;
-     await updateSubUser(subUserId, payload, idToken);
-     console.log('Sub-user updated:', payload);
-   } catch (err) {
-     console.error('Failed to update sub-user:', err?.message || err);
-     alert('Failed to update account settings: ' + (err?.message || err));
-     throw err;
-   } finally {
-     setUpdatingSubUser(false);
-   }
-};
+  const patchSelectedUser = async (payload) => {
+    if (!selectedUser) {
+      alert('Please select an account before updating settings.');
+      throw new Error('No selected sub-user');
+    }
+    setUpdatingSubUser(true);
+    try {
+      const idToken = typeof fbUser?.getIdToken === 'function' ? await fbUser.getIdToken() : null;
+      const subUserId = selectedUser.document_id || selectedUser.sub_user_id || selectedUser.id;
+      await updateSubUser(subUserId, payload, idToken);
+      console.log('Sub-user updated:', payload);
+    } catch (err) {
+      console.error('Failed to update sub-user:', err?.message || err);
+      alert('Failed to update account settings: ' + (err?.message || err));
+      throw err;
+    } finally {
+      setUpdatingSubUser(false);
+    }
+  };
 
   return (
     <div className="App">
@@ -212,10 +212,10 @@ const MainApp = () => {
         </div>
 
         {/* Auto-bid proposal source toggle */}
-       <label className="ml-3 flex items-center text-sm">
+        <label className="ml-3 flex items-center text-sm">
           <input
             type="checkbox"
-            checked={useAiProposal}
+            checked={selectedUser?.autobid_proposal_type === "ai"}
             onChange={async (e) => {
               const enabled = e.target.checked;
               try {
@@ -240,16 +240,17 @@ const MainApp = () => {
           <label htmlFor="autoBidType" style={{ fontSize: '14px', color: '#495057' }}>AutoBid Type:</label>
           <select
             id="autoBidType"
-            value={autoBidType}
-            onChange={async(e) => {
+            value={selectedUser?.autobid_enabled_for_job_type}
+            onChange={async (e) => {
               const val = e.target.value;
               setAutoBidType(val);
-            try{
-              await patchSelectedUser({ autobid_enabled_for_job_type: val });
-            }
-            catch(err){
+              try {
+                await patchSelectedUser({ autobid_enabled_for_job_type: val });
+              }
+              catch (err) {
 
-            }}}
+              }
+            }}
             style={{
               padding: '6px 8px',
               borderRadius: '4px',
@@ -264,7 +265,7 @@ const MainApp = () => {
             <option value="hourly">Hourly</option>
           </select>
         </div>
-         {/* optional small indicator when updating sub-user */}
+        {/* optional small indicator when updating sub-user */}
         {updatingSubUser && <div style={{ marginLeft: 12, color: '#6c757d', fontSize: 12 }}>Saving...</div>}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
