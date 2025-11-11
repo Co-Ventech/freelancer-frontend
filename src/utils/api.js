@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+export const API_BASE = process.env.REACT_APP_API_BASE_URL;
 export default API_BASE;
 
 export const ENDPOINTS = {
@@ -8,7 +8,7 @@ export const ENDPOINTS = {
     NOTIFICATIONS: '/notifications',
 };
 
-const API_BASE_CLEAN = (API_BASE || 'http://localhost:5000').replace(/\/$/, '');
+const API_BASE_CLEAN = (API_BASE);
 
 // central axios instance for backend calls
 export const apiClient = axios.create({
@@ -149,6 +149,15 @@ export const getNotifications = async (subUserId, idToken = null) => {
   const url = buildUrl(`${API_BASE.replace(/\/$/, '')}${ENDPOINTS.NOTIFICATIONS}`, { sub_user_id: subUserId });
   const headers = getAuthHeaders(idToken);
   return apiClient.get(url, { headers});
+};
+
+export const markNotificationRead = async (subUserId, notificationId, is_read = true, idToken = null) => {
+  if (!subUserId) throw new Error('subUserId required to mark notification');
+  if (!notificationId) throw new Error('notificationId required to mark notification');
+  const base = `${API_BASE.replace(/\/$/, '')}${ENDPOINTS.NOTIFICATIONS}/mark-read`;
+  const url = buildUrl(base, { sub_user_id: subUserId, is_read: String(is_read), notification_id: notificationId });
+  const headers = getAuthHeaders(idToken);
+  return apiClient.post(url, {}, { headers });
 };
 
 

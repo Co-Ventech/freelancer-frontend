@@ -148,6 +148,45 @@ export const NotificationProvider = ({ children }) => {
   }, [items, shouldPersist, storageKey]);
 
   // Play sound when new UNREAD notification(s) are added — only for bid-success style notifications
+  // useEffect(() => {
+  //   // Don't run until initial load for current account completed
+  //   if (!initialLoadedRef.current) return;
+
+  //   const prevUnread = typeof prevCountRef.current === 'number' ? prevCountRef.current : 0;
+  //   const currUnread = Array.isArray(items) ? items.filter(i => !i.read).length : 0;
+
+  //   if (currUnread > prevUnread) {
+  //     // Determine which incoming unread items are new by checking the head of items
+  //     // We'll consider up to (currUnread - prevUnread) newest unread items
+  //     const addedCount = currUnread - prevUnread;
+  //     const newItems = items.filter(i => !i.read).slice(0, addedCount);
+  //     const hasBidSuccess = newItems.some((n) => {
+  //       if (!n) return false;
+  //       if (n.type !== 'success') return false;
+  //       if (n.category === 'bid_success') return true;
+  //       if (typeof n.title === 'string' && (n.title === 'Bid placed' || n.title === 'AutoBid completed')) return true;
+  //       return false;
+  //     });
+
+  //     if (hasBidSuccess && audioRef.current) {
+  //       try {
+  //         audioRef.current.currentTime = 0;
+  //         const playPromise = audioRef.current.play();
+  //         if (playPromise && typeof playPromise.then === 'function') {
+  //           playPromise.catch((err) => {
+  //             console.warn('Notification sound play prevented:', err.message);
+  //           });
+  //         }
+  //       } catch (err) {
+  //         console.warn('Error playing notification sound', err);
+  //       }
+  //     }
+  //   }
+
+  //   // Update previous unread count for next comparison
+  //   prevCountRef.current = currUnread;
+  // }, [items]);
+
   useEffect(() => {
     // Don't run until initial load for current account completed
     if (!initialLoadedRef.current) return;
@@ -160,6 +199,7 @@ export const NotificationProvider = ({ children }) => {
       // We'll consider up to (currUnread - prevUnread) newest unread items
       const addedCount = currUnread - prevUnread;
       const newItems = items.filter(i => !i.read).slice(0, addedCount);
+
       const hasBidSuccess = newItems.some((n) => {
         if (!n) return false;
         if (n.type !== 'success') return false;
@@ -170,15 +210,57 @@ export const NotificationProvider = ({ children }) => {
 
       if (hasBidSuccess && audioRef.current) {
         try {
-          audioRef.current.currentTime = 0;
-          const playPromise = audioRef.current.play();
-          if (playPromise && typeof playPromise.then === 'function') {
-            playPromise.catch((err) => {
-              console.warn('Notification sound play prevented:', err.message);
-            });
-          }
+          // If audio hasn't been unlocked by a user interaction, attempt a muted-play unlock.
+          // Many browsers allow play when muted; this often lets future unmuted plays succeed.
+          const audio = audioRef.current;
+
+          const tryUnlock = async () => {
+            if (!audio) return false;
+            if (audioUnlockedRef.current) return true;
+            try {
+              // ensure muted to increase chance of play success
+              const prevMuted = audio.muted;
+              audio.muted = true;
+              audio.currentTime = 0;
+              const p = audio.play();
+              if (p && typeof p.then === 'function') {
+                await p;
+              }
+              // pause immediately and restore muted flag
+              audio.pause();
+              audio.currentTime = 0;
+              audio.muted = prevMuted;
+              audioUnlockedRef.current = true;
+              return true;
+            } catch (err) {
+              // unlock failed (likely autoplay block) — will still attempt unmuted play below and catch error
+              console.warn('Audio unlock attempt failed:', err?.message || err);
+              return false;
+            }
+          };
+
+          (async () => {
+            // try unlock if not unlocked yet
+            if (!audioUnlockedRef.current) {
+              await tryUnlock();
+            }
+
+            // Now attempt to play the notification sound normally (unmuted)
+            try {
+              audio.currentTime = 0;
+              const playPromise = audio.play();
+              if (playPromise && typeof playPromise.then === 'function') {
+                playPromise.catch((err) => {
+                  // still might be blocked — log and instruct user
+                  console.warn('Notification sound play prevented:', err?.message || err);
+                });
+              }
+            } catch (err) {
+              console.warn('Error playing notification sound', err);
+            }
+          })();
         } catch (err) {
-          console.warn('Error playing notification sound', err);
+          console.warn('Error preparing notification sound', err);
         }
       }
     }

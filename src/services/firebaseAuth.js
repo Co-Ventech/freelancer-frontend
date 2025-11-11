@@ -71,7 +71,7 @@ import {
        // --- NEW: request backend access-token using Firebase idToken and persist it ---
       try {
         const accessRes = await axios.post(
-          `${process.env.REACT_APP_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:5000'}/access-token`,
+          `${process.env.REACT_APP_API_BASE_URL}/access-token`,
           {}, // body optional — backend usually uses Authorization header
           { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, validateStatus: () => true }
         );

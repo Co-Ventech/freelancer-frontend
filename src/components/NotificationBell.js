@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import { useUsersStore } from '../store/useUsersStore';
+import { markNotificationRead } from '../utils/api';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useModal } from '../contexts/ModalContext';
 import ProjectDetailsModal from './ProjectDetailsModal';
@@ -18,8 +20,43 @@ const NotificationBell = () => {
   const { items, unreadCount, markRead, markAllRead, remove } = useNotifications();
   const { modalState, openModal, closeModal } = useModal();
   const [open, setOpen] = useState(false);
+   const [pendingIds, setPendingIds] = useState(new Set());
+ const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
 
   const grouped = useMemo(() => items, [items]);
+ const handleMarkRead = async (notification) => {
+    const id = notification.id;
+    if (!id) return;
+    const subUserId = selectedSubUser?.document_id || selectedSubUser?.sub_user_id || selectedSubUser?.id;
+    // Optimistically add pending flag
+    setPendingIds((prev) => new Set(prev).add(id));
+    try {
+      if (!subUserId) {
+        // fallback: no sub-user available, mark locally
+        markRead(id);
+        return;
+      }
+      const res = await markNotificationRead(subUserId, id, true);
+      if (res && res.status >= 200 && res.status < 300) {
+        markRead(id);
+      } else {
+        // fallback to local mark and log
+        console.warn('mark-read failed', res?.status, res?.data);
+        markRead(id);
+      }
+    } catch (err) {
+      console.warn('mark-read error', err);
+      // fallback to local mark
+      markRead(id);
+    } finally {
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
 
   return (
     <div style={{ position: 'relative' }}>
@@ -100,9 +137,23 @@ const NotificationBell = () => {
                         View
                       </button>
                     )}
-                    {!n.read && (
-                      <button onClick={() => markRead(n.id)} style={{ border: '1px solid #dee2e6', background: 'white', color: '#0d6efd', cursor: 'pointer', padding: '6px 10px', borderRadius: 6 }}>Mark as read</button>
+                     {!n.read && (
+                      <button
+                        onClick={() => handleMarkRead(n)}
+                        disabled={pendingIds.has(n.id)}
+                        style={{
+                          border: '1px solid #dee2e6',
+                          background: pendingIds.has(n.id) ? '#f1f3f5' : 'white',
+                          color: pendingIds.has(n.id) ? '#6c757d' : '#0d6efd',
+                          cursor: pendingIds.has(n.id) ? 'default' : 'pointer',
+                          padding: '6px 10px',
+                          borderRadius: 6
+                        }}
+                      >
+                        {pendingIds.has(n.id) ? 'Saving…' : 'Mark as read'}
+                      </button>
                     )}
+                 
                     <button onClick={() => remove(n.id)} style={{ border: '1px solid #dee2e6', background: 'white', color: '#dc3545', cursor: 'pointer', padding: '6px 10px', borderRadius: 6 }}>Delete</button>
                   </div>
                 </div>

@@ -1,193 +1,276 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { API_BASE, getAuthHeaders } from '../utils/api';
+import { useUsersStore } from '../store/useUsersStore';
+import { formatPakistanDate } from '../utils/dateUtils';
 
 const SuccessBidsPage = () => {
-  const [bids, setBids] = useState([]);
-  const [filteredBids, setFilteredBids] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [savedBids, setSavedBids] = useState([]);
+  const [loadingBids, setLoadingBids] = useState(true);
   const [error, setError] = useState(null);
-  const [bidderIdFilter, setBidderIdFilter] = useState('ALL');
-  const [bidderTypeFilter, setBidderTypeFilter] = useState('ALL');
-  const [uniqueBidderIds, setUniqueBidderIds] = useState([]);
 
-  // Hardcoded user mapping
-  const userMapping = {
-    8622920: 'Zubair',
-    85786318: 'Co_ventech',
-    88454359: 'Zameer Ahmed',
-    78406347: 'Ahsan',
+  // UI state (same pattern as AdminDashboard)
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
+  const [bidderFilter, setBidderFilter] = useState('ALL');
+  const [bidderTypeFilter, setBidderTypeFilter] = useState('ALL');
+  const [projectTypeFilter, setProjectTypeFilter] = useState('ALL');
+
+  // dynamic sub-users from store (used for filters / names)
+  const subUsers = useUsersStore((s) => s.users || []);
+
+  const userFilterList = useMemo(() => {
+    return Array.isArray(subUsers)
+      ? subUsers
+          .map((u) => {
+            const id = String(u.user_bid_id || u.bidder_id || u.user_bid || '');
+            const name = u.sub_username || u.name || `sub_${(u.document_id || '').slice(0, 6)}`;
+            return id ? { id, name } : null;
+          })
+          .filter(Boolean)
+      : [];
+  }, [subUsers]);
+
+  const userMapping = useMemo(() => {
+    return (Array.isArray(subUsers) ? subUsers : []).reduce((acc, u) => {
+      const id = String(u.user_bid_id || u.bidder_id || u.user_bid || '');
+      if (id) acc[id] = u.sub_username || u.name || acc[id] || `sub_${(u.document_id || '').slice(0, 6) || id}`;
+      return acc;
+    }, {});
+  }, [subUsers]);
+
+  const badgeClass = {
+    bidder: 'bg-blue-100 text-blue-800 border-blue-300',
+    period: 'bg-orange-100 text-orange-800 border-orange-300',
+    bidType: 'bg-purple-100 text-purple-800 border-purple-300',
+    projectType: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    budget: {
+      low: 'bg-green-100 text-green-800 border-green-300',
+      medium: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      high: 'bg-red-100 text-red-800 border-red-300',
+    },
   };
 
-  const userFilterList = [
-  { id: '8622920', name: 'Zubair' },
-  { id: '85786318', name: 'Co_ventech' },
-  { id: '88454359', name: 'Zameer Ahmed' },
-  { id: '78406347', name: 'Ahsan' },
-];
+  const getBudgetBadgeClass = (min, max) => {
+    const amount = max || min || 0;
+    if (amount <= 50) return badgeClass.budget.low;
+    if (amount <= 500) return badgeClass.budget.medium;
+    return badgeClass.budget.high;
+  };
 
-  useEffect(() => {
-    const fetchBids = async () => {
-      try {
-         const url = `${process.env.REACT_APP_API_BASE_URL || API_BASE}/bids`;
-        const headers = getAuthHeaders();
-        const response = await axios.get(url, { headers, validateStatus: () => true });
+  const getBidAmountBadgeClass = (amount) => {
+    if (amount == null) return 'bg-gray-100 text-gray-800 border-gray-300';
+    if (amount <= 50) return 'bg-green-100 text-green-800 border-green-300';
+    if (amount > 100) return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+    return 'bg-red-100 text-red-800 border-yellow-300';
+  };
 
-              if (response.data?.status === 200) {
-          setBids(response.data.data);
-          setFilteredBids(response.data.data);
-          const uniqueIds = [...new Set(response.data.data.map((bid) => String(bid.bidder_id)))];
-          setUniqueBidderIds(uniqueIds);
-        } else {
-          setError(response.data?.message || 'Failed to fetch bids');
-        }
-      } catch (err) {
-        setError(err.message || 'An error occurred while fetching bids');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const buildBidsUrl = () => {
+    const params = [];
+    if (bidderFilter && bidderFilter !== 'ALL') params.push(`bidder_id=${encodeURIComponent(bidderFilter)}`);
+    if (bidderTypeFilter && bidderTypeFilter !== 'ALL') params.push(`bidder_type=${encodeURIComponent(bidderTypeFilter)}`);
+    if (projectTypeFilter && projectTypeFilter !== 'ALL') params.push(`type=${encodeURIComponent(projectTypeFilter)}`);
+    const qs = params.length ? `?${params.join('&')}` : '';
+    return `${(API_BASE || '').replace(/\/$/, '')}/bids${qs}`;
+  };
 
-    fetchBids();
-  }, []);
-
-  // Filter bids based on selected bidder ID and bidder type
-  useEffect(() => {
-    let url = `${process.env.REACT_APP_API_BASE_URL || API_BASE}/bids`;
-    let params = [];
-    if (bidderIdFilter !== 'ALL') {
-      params.push(`bidder_id=${bidderIdFilter}`);
-    }
-    if (bidderTypeFilter !== 'ALL') {
-      params.push(`bidder_type=${bidderTypeFilter}`);
-    }
-    if (params.length > 0) {
-      url += '?' + params.join('&');
-    }
-
-    const fetchFilteredBids = async () => {
-      setLoading(true);
+  const loadBids = async () => {
+    try {
+      setLoadingBids(true);
       setError(null);
-      try {
-       const headers = getAuthHeaders();
-      const response = await axios.get(url, { headers, validateStatus: () => true });
-
-        if (response.data?.status === 200) {
-          setFilteredBids(response.data.data);
-        } else {
-          setError(response.data?.message || 'Failed to fetch bids');
-          setFilteredBids([]);
-        }
-      } catch (err) {
-        setError(err.message || 'An error occurred while fetching bids');
-        setFilteredBids([]);
-      } finally {
-        setLoading(false);
+      const url = buildBidsUrl();
+      const headers = getAuthHeaders();
+      const res = await axios.get(url, { headers, validateStatus: () => true });
+      if (!(res.status >= 200 && res.status < 300)) {
+        throw new Error(res?.data?.message || `Failed to load bids: ${res.status}`);
       }
-    };
+      const bids = Array.isArray(res.data?.data) ? res.data.data : [];
+      setSavedBids(bids);
+    } catch (err) {
+      console.error('Failed to load bids:', err);
+      setSavedBids([]);
+      setError(err?.message || 'Failed to load bids');
+    } finally {
+      setLoadingBids(false);
+    }
+  };
 
-    fetchFilteredBids();
-  }, [bidderIdFilter, bidderTypeFilter]);
+  useEffect(() => {
+    loadBids();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bidderFilter, bidderTypeFilter, projectTypeFilter]);
 
-  if (loading) {
-    return <div>Loading bids...</div>;
-  }
+  const getBidDate = (bid) => {
+    try {
+      return formatPakistanDate(bid.date || bid.createdAt || bid.created_at) || '';
+    } catch {
+      return new Date(bid.date || bid.createdAt || Date.now()).toLocaleString();
+    }
+  };
 
-  if (error) {
-    return <div style={{ color: 'red' }}>Error: {error}</div>;
-  }
+  const getBidderName = (id) => {
+    if (userMapping[String(id)]) return userMapping[String(id)];
+    const found = subUsers.find((u) => String(u.user_bid_id || u.bidder_id || '') === String(id));
+    if (found) return found.sub_username || found.name || String(id);
+    return 'No data found';
+  };
 
- return (
-  <div style={{ padding: '20px' }}>
-    <h2>Bid Records</h2>
+  if (loadingBids) return <div className="flex items-center justify-center p-8">Loading bids...</div>;
+  if (error) return <div className="p-6 text-red-700">Error: {error}</div>;
 
-    {/* Filter Dropdowns */}
-    <div style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
-      <div>
-        <label htmlFor="bidderFilter" style={{ marginRight: '10px', fontWeight: 'bold' }}>
-          Filter by Bidder:
-        </label>
-        <select
-          id="bidderFilter"
-          value={bidderIdFilter}
-          onChange={(e) => setBidderIdFilter(e.target.value)}
-          style={{
-            padding: '8px',
-            borderRadius: '4px',
-            border: '1px solid #ddd',
-            fontSize: '14px',
-          }}
-        >
-          <option value="ALL">All Users</option>
-          {userFilterList.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label htmlFor="bidderTypeFilter" style={{ marginRight: '10px', fontWeight: 'bold' }}>
-          Filter by Bid Type:
-        </label>
-        <select
-          id="bidderTypeFilter"
-          value={bidderTypeFilter}
-          onChange={(e) => setBidderTypeFilter(e.target.value)}
-          style={{
-            padding: '8px',
-            borderRadius: '4px',
-            border: '1px solid #ddd',
-            fontSize: '14px',
-          }}
-        >
-          <option value="ALL">All Types</option>
-          <option value="manual">Manual</option>
-          <option value="auto">Auto</option>
-        </select>
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Bid Records</h1>
+            <p className="text-gray-600 mt-1">Saved bids and history</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <select value={bidderFilter} onChange={(e) => setBidderFilter(e.target.value)} className="border px-2 py-1 rounded">
+              <option value="ALL">All Bidders</option>
+              {userFilterList.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+
+            <select value={bidderTypeFilter} onChange={(e) => setBidderTypeFilter(e.target.value)} className="border px-2 py-1 rounded">
+              <option value="ALL">All Bid Types</option>
+              <option value="manual">Manual</option>
+              <option value="auto">Auto</option>
+            </select>
+
+            <select value={projectTypeFilter} onChange={(e) => setProjectTypeFilter(e.target.value)} className="border px-2 py-1 rounded">
+              <option value="ALL">All Project Types</option>
+              <option value="fixed">Fixed</option>
+              <option value="hourly">Hourly</option>
+            </select>
+
+            <div className="flex items-center gap-1">
+              <button onClick={() => setViewMode('grid')} className={`px-3 py-1 rounded ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>Grid</button>
+              <button onClick={() => setViewMode('list')} className={`px-3 py-1 rounded ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>List</button>
+            </div>
+
+            <button onClick={loadBids} className="px-3 py-1 bg-gray-800 text-white rounded">Refresh</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white p-4 rounded shadow">
+            <div className="text-sm text-gray-500">Saved Bids</div>
+            <div className="text-xl font-semibold">{savedBids.length}</div>
+          </div>
+          <div className="bg-white p-4 rounded shadow">
+            <div className="text-sm text-gray-500">Unique Bidders</div>
+            <div className="text-xl font-semibold">{[...new Set(savedBids.map(b => String(b.bidder_id)))].length}</div>
+          </div>
+          <div className="bg-white p-4 rounded shadow">
+            <div className="text-sm text-gray-500">View Mode</div>
+            <div className="text-xl font-semibold">{viewMode}</div>
+          </div>
+        </div>
+
+        {savedBids.length === 0 ? (
+          <div className="bg-white p-6 rounded shadow">No saved bids found.</div>
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {savedBids.map((bid) => {
+              const key = bid.document_id || `${bid.project_id}_${bid.bidder_id}`;
+              return (
+                <div key={key} className="bg-white p-4 rounded shadow flex flex-col">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-lg font-semibold">{bid.projectTitle}</h3>
+                      <div className="text-xs text-gray-500 mt-1">{(bid.type || '').toUpperCase()}</div>
+                    </div>
+                    <div className={`px-3 py-1.5 rounded-lg font-semibold border inline-block ${getBidAmountBadgeClass(bid.amount)}`}>
+                      ${bid.amount ?? 'N/A'}
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-gray-600 mt-2 line-clamp-3">{bid.projectDescription}</p>
+
+                  <div className="mt-2 text-sm text-gray-700">
+                    <div className="text-xs text-gray-500">Proposal</div>
+                    <div className="mt-1 text-sm text-gray-600 line-clamp-3">
+                      {bid.description && bid.description.trim() !== '' ? bid.description : <span className="text-gray-400">No proposal provided</span>}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    <span className={`px-2 py-1 rounded font-semibold border ${badgeClass.bidder}`}>Bidder: {getBidderName(bid.bidder_id)}</span>
+                    <span className={`px-2 py-1 rounded font-semibold border ${badgeClass.period}`}>Period: {bid.period ?? 'N/A'}d</span>
+                    <span className={`px-2 py-1 rounded font-semibold border ${badgeClass.bidType}`}>Bid Type: {bid.bidder_type || 'N/A'}</span>
+                    <span className={`px-2 py-1 rounded font-semibold border ${badgeClass.projectType}`}>Project Type: {(bid.type || 'N/A').toUpperCase()}</span>
+                    <span className={`px-2 py-1 rounded font-semibold border ${getBudgetBadgeClass(bid.budget?.minimum, bid.budget?.maximum)}`}>Budget: {bid.budget?.minimum != null ? `$${bid.budget.minimum}` : '-'} - {bid.budget?.maximum != null ? `$${bid.budget.maximum}` : '-'}</span>
+                  </div>
+
+                  <div className="mt-3 flex-1">
+                    <div className="text-sm text-gray-500 mb-2">Scores</div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {bid.scores ? Object.entries(bid.scores).slice(0, 8).map(([k, v]) => {
+                        const formatScore = (val) => {
+                          if (val == null) return '-';
+                          if (typeof val !== 'number') return String(val);
+                          return Number.isInteger(val) ? String(val) : val.toFixed(2);
+                        };
+                        return (
+                          <div key={k} className="flex justify-between bg-gray-50 px-2 py-1 rounded">
+                            <span className="text-xs">{k.replace(/_/g, ' ')}</span>
+                            <span className="font-medium text-xs">{formatScore(v)}</span>
+                          </div>
+                        );
+                      }) : <div className="text-xs text-gray-400">No scores</div>}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={() => window.open(`https://www.freelancer.com/projects/${bid.url}`, '_blank')} className="flex-1 px-2 py-1 bg-blue-600 text-white rounded">View Project</button>
+                  </div>
+
+                  <div className="mt-3 px-2 py-1 bg-gray-50 rounded text-green-600">
+                    Date: {getBidDate(bid)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bg-white rounded shadow overflow-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Project</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Bidder</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Type</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Bid Type</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Amount</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Period</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Link</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {savedBids.map((bid) => (
+                  <tr key={bid.document_id || `${bid.project_id}_${bid.bidder_id}`}>
+                    <td className="px-4 py-3 text-sm">{bid.projectTitle}</td>
+                    <td className="px-4 py-3 text-sm">{getBidderName(bid.bidder_id)}</td>
+                    <td className="px-4 py-3 text-sm">{bid.type}</td>
+                    <td className="px-4 py-3 text-sm">{bid.bidder_type}</td>
+                    <td className="px-4 py-3 text-sm">${bid.amount ?? 'N/A'}</td>
+                    <td className="px-4 py-3 text-sm">{bid.period ?? 'N/A'}d</td>
+                    <td className="px-4 py-3 text-sm">{getBidDate(bid)}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <button onClick={() => window.open(`https://www.freelancer.com/projects/${bid.url}`, '_blank', 'noopener,noreferrer')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">View</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
       </div>
     </div>
-
-    {/* Display Bids */}
-    {filteredBids.length === 0 ? (
-      <p>No bids found for the selected user/type.</p>
-    ) : (
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Project Title</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Bidder Name</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Bidder Type</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Amount</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Period</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Budget</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Project Description</th>
-            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Proposal</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredBids.map((bid) => (
-            <tr key={bid.project_id}>
-              <td style={{ border: '1px solid #ddd', padding: '8px' }}>{bid.projectTitle}</td>
-              <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                {userMapping[bid.bidder_id] || 'No data found'}
-              </td>
-              <td style={{ border: '1px solid #ddd', padding: '8px' }}>{bid.bidder_type}</td>
-              <td style={{ border: '1px solid #ddd', padding: '8px' }}>{bid.amount}</td>
-              <td style={{ border: '1px solid #ddd', padding: '8px' }}>{bid.period}</td>
-              <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                {bid.budget?.minimum} - {bid.budget?.maximum}
-              </td>
-              <td style={{ border: '1px solid #ddd', padding: '8px' }}>{bid.projectDescription}</td>
-              <td style={{ border: '1px solid #ddd', padding: '8px' }}>{bid.description}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )}
-  </div>
-);
+  );
 };
 
 export default SuccessBidsPage;
