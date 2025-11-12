@@ -29,7 +29,7 @@ const ProposalModal = ({
   // const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
   // const selectedSubUser = useUsersStore.getState().getSelectedUser?.() || null;
   // const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;
- const { currentUser,  bidderId } = useAuth();
+  const { currentUser, bidderId } = useAuth();
   // get selected sub-user from Zustand (reactive inside modal)
   const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
   const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;
@@ -79,14 +79,14 @@ const ProposalModal = ({
 
       console.log("Current User: ", currentUser)
 
-     const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
+      const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
         id: projectId,
         title: projectTitle,
         description: projectDescription,
         name: displayName
       });
 
-      if(response.status===200){
+      if (response.status === 200) {
         setProposal(response.data.proposal);
       }
     } catch (err) {
@@ -108,7 +108,7 @@ const ProposalModal = ({
       const generalProposal = getGeneralProposal(displayName);
       setProposal(generalProposal);
     }
-  }, [isAiProposalEnabled,displayName])
+  }, [isAiProposalEnabled, displayName])
 
 
 

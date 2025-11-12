@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect,useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useUsersStore } from '../store/useUsersStore';
 import { API_CONFIG, buildQueryParams, STORAGE_KEYS } from '../utils/apiUtils';
@@ -6,34 +6,34 @@ import { useAuth } from '../contexts/AuthContext';
 import { getUnixTimestamp } from '../utils/dateUtils';
 import { API_BASE, getAuthHeaders } from '../utils/api';
 
-export const useFreelancerAPI = ({ autoBidType }) => {
+export const useFreelancerAPI = () => {
   // NOTE: selectedUser is sourced from Zustand (sub-users fetched from your backend).
   // selectedUser shape expected: { sub_user_access_token, sub_username, user_bid_id, general_proposal, ... }
   // const selectedUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
   const selectedKey = useUsersStore((s) => s.selectedKey);
 
   // Keep legacy auth for other app features (not used for sub-user calls)
-  const { token: legacyToken, currentUser } = useAuth();
+  const { currentUser } = useAuth();
   const [projects, setProjects] = useState([]);
   const [usersMapState, setUsersMapState] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [skillsCache, setSkillsCache] = useState({});
+  // const [skillsCache, setSkillsCache] = useState({});
 
-    const skillsCacheRef = useRef({});
+  const skillsCacheRef = useRef({});
   const isFetchingRef = useRef(false);
   const cooldownUntilRef = useRef(0); // timestamp (ms) until which we should back off on rate-limit
- 
+
 
   // Countries to completely exclude from fetch/display/auto-bid
   const EXCLUDED_COUNTRIES = [
-    'pakistan','india','bangladesh','indonesia','algeria','nigeria','egypt','nepal','israel'
+    'pakistan', 'india', 'bangladesh', 'indonesia', 'algeria', 'nigeria', 'egypt', 'nepal', 'israel'
   ];
   const normalize = (s) => (s || '').toString().trim().toLowerCase();
 
   const isLocalProject = (proj) => {
     if (!proj) return false;
-    const v = proj.local; 
+    const v = proj.local;
     return v === true || v === 'true' || String(v).toLowerCase() === 'true';
   };
   const isExcludedCountry = (countryName) => {
@@ -75,7 +75,7 @@ export const useFreelancerAPI = ({ autoBidType }) => {
     }
   };
 
-// Resolve selected sub-user and return backend-provided bidder id (user_bid_id).
+  // Resolve selected sub-user and return backend-provided bidder id (user_bid_id).
   // Wait briefly for store to populate to avoid race on initial app load.
   const getUserInfo = useCallback(async () => {
     const waitForSelection = async (timeoutMs = 5000, pollMs = 200) => {
@@ -124,7 +124,7 @@ export const useFreelancerAPI = ({ autoBidType }) => {
       const skills = response.data?.result?.topSkills?.map((skill) => skill.id) || [];
       skillsCacheRef.current = { ...skillsCacheRef.current, [userId]: skills };
       // keep UI-level cache in sync (optional)
-      setSkillsCache((prevCache) => ({ ...prevCache, [userId]: skills }));
+      // setSkillsCache((prevCache) => ({ ...prevCache, [userId]: skills }));
       return skills;
     } catch (err) {
       console.error('Error fetching user skills:', err);
@@ -196,7 +196,7 @@ export const useFreelancerAPI = ({ autoBidType }) => {
     setLoading(true);
     setError(null);
 
-       // if we are currently in a cooldown period (rate-limited), skip and exit early
+    // if we are currently in a cooldown period (rate-limited), skip and exit early
     if (cooldownUntilRef.current && Date.now() < cooldownUntilRef.current) {
       const waitSecs = Math.ceil((cooldownUntilRef.current - Date.now()) / 1000);
       console.warn(`In cooldown due to previous rate-limit. Next fetch in ${waitSecs}s`);
@@ -210,7 +210,7 @@ export const useFreelancerAPI = ({ autoBidType }) => {
       setLoading(false);
       return;
     }
-   isFetchingRef.current = true;
+    isFetchingRef.current = true;
 
     try {
       const userId = await getUserInfo();
@@ -243,7 +243,7 @@ export const useFreelancerAPI = ({ autoBidType }) => {
 
       // console.log(`Fetched ${projects.length} projects for selected user ${selectedUser?.sub_username || currentUser}`);
     } catch (err) {
-           const errorMessage = handleApiError(err);
+      const errorMessage = handleApiError(err);
       setError(errorMessage);
       console.error('Failed to fetch recent projects:', err);
       // if rate-limited, back off for 5 minutes
@@ -252,12 +252,12 @@ export const useFreelancerAPI = ({ autoBidType }) => {
         console.warn('Rate-limited by API. Activating 5 minute cooldown.');
       }
     } finally {
-       isFetchingRef.current = false;
+      isFetchingRef.current = false;
       setLoading(false);
     }
   }, [getUserInfo, getUserSkills, getProjectsBySkills, currentUser]);
 
-    useEffect(() => {
+  useEffect(() => {
     let intervalId = null;
     let scheduledTimeout = null;
 
@@ -272,7 +272,7 @@ export const useFreelancerAPI = ({ autoBidType }) => {
       // if currently in cooldown, schedule a single retry when cooldown ends
       if (cooldownUntilRef.current && Date.now() < cooldownUntilRef.current) {
         const waitMs = cooldownUntilRef.current - Date.now() + 1000;
-        console.warn(`Cooldown active. Scheduling next fetch in ${Math.ceil(waitMs/1000)}s`);
+        console.warn(`Cooldown active. Scheduling next fetch in ${Math.ceil(waitMs / 1000)}s`);
         scheduledTimeout = setTimeout(() => {
           fetchRecentProjects().catch((e) => console.warn('Scheduled fetch failed:', e.message));
         }, waitMs);
@@ -321,7 +321,7 @@ export const useFreelancerAPI = ({ autoBidType }) => {
   };
 
   // Manual place bid uses selectedUser credentials (already implemented earlier)
-const placeBidManual = useCallback(async ({ projectId, amount, period = 5, description = '', userKey = null, projectMeta = null }) => {
+  const placeBidManual = useCallback(async ({ projectId, amount, period = 5, description = '', userKey = null, projectMeta = null }) => {
     const getSelected = useUsersStore.getState().getSelectedUser;
     const selected = userKey ? useUsersStore.getState().users.find(u => u.sub_username === userKey || String(u.id) === String(userKey)) : getSelected();
     if (!selected) throw new Error('No sub-user selected. Please select an account in the User Switcher.');

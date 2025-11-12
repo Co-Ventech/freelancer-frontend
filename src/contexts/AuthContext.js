@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 
 // import React, { createContext, useContext, useState } from 'react';
 import firebaseAuthService from '../services/firebaseAuth';
@@ -44,28 +44,28 @@ const resolveCredsForUser = (keyRaw) => {
 
 
 export const AuthProvider = ({ children }) => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // const [loading, setLoading] = useState(true);
+  // const [error, setError] = useState(null);
   const [currentUser, setCurrentUser] = useState('DEFAULT');
   const [token, setToken] = useState(null);
   const [bidderId, setBidderId] = useState(null);
 
   const login = async (email, password) => {
-    setLoading(true);
-    setError(null);
+    // setLoading(true);
+    // setError(null);
     try {
       await firebaseAuthService.login(email, password);
     } catch (err) {
-      setError(err.message);
+      // setError(err.message);
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
 
    // Register wrapper — ensure register is exposed to components
  const register = async (email, password, name) => {
-    setLoading(true);
-    setError(null);
+    // setLoading(true);
+    // setError(null);
     try {
       // Use firebaseAuthService.register if available; adjust if your service uses a different method name
       if (typeof firebaseAuthService.register === 'function') {
@@ -76,10 +76,10 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Registration method not implemented in firebaseAuthService');
       }
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      // setError(err.message || 'Registration failed');
       throw err; // rethrow so forms can handle the error if needed
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
 

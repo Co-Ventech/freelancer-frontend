@@ -7,7 +7,6 @@ const RegisterForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -22,16 +21,16 @@ const RegisterForm = () => {
         email, 
         password, 
         name, 
-        isAdmin ? 'admin' : 'user'
+        // isAdmin ? 'admin' : 'user'
       );
       
       if (result.success) {
         // Redirect based on role
-        if (isAdmin) {
-          navigate('/admin');
-        } else {
+        // if (isAdmin) {
+        //   navigate('/admin');
+        // } else {
           navigate('/');
-        }
+        //}
       } else {
         setError(result.error);
       }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { formatUnixToPakistanTime, formatCurrency } from '../utils/dateUtils';
+import { formatUnixToPakistanTime } from '../utils/dateUtils';
 import { useBidding } from '../hooks/useBidding';
 import bidService from '../services/bidService';
 import { isProjectNew } from '../utils/apiUtils';
@@ -8,11 +8,11 @@ import { useFreelancerAPI } from '../hooks/useFreelancerAPI';
 /**
  * ProjectCard component - renders a single project in a card format
  */
-const ProjectCard = ({ project, bidderType,usersMap= null }) => {
- const { calculateBidAmount, placeBidManual, loading: apiLoading } = useFreelancerAPI({ bidderType });
-//  const { loading: localLoading, error, success, clearError } = { loading: apiLoading, error: null, success: null, clearError: () => {} };
- const { loading, error, success, placeBid, clearError } = useBidding();
- const [isModalOpen, setIsModalOpen] = useState(false);
+const ProjectCard = ({ project, usersMap = null }) => {
+  const { calculateBidAmount, placeBidManual } = useFreelancerAPI();
+  //  const { loading: localLoading, error, success, clearError } = { loading: apiLoading, error: null, success: null, clearError: () => {} };
+  const { loading, error, success, clearError } = useBidding();
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
   // Extract project data with fallbacks based on the actual API response structure
   const {
@@ -21,14 +21,13 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
     status = 'N/A',
     seo_url = null,
     currency = {},
-    description ,
+    description,
     preview_description = null,
     submitdate = null,
     type = 'N/A',
     bidperiod = 'N/A',
-    budget ,
+    budget,
     bid_stats = {},
-    location ,
     users,
   } = project;
 
@@ -92,7 +91,7 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
 
   const ownerCountry = getOwnerCountry(project);
   // --- end country extraction ---
-// ...existing code...
+  // ...existing code...
 
   // Format currency information
   const currencyCode = currency?.code || 'USD';
@@ -102,26 +101,25 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
   // Format budget
   const budgetMin = budget?.minimum || 0;
   const budgetMax = budget?.maximum || 0;
-  
-  const budgetDisplay = budgetMin && budgetMax && budgetMax > budgetMin 
+
+  const budgetDisplay = budgetMin && budgetMax && budgetMax > budgetMin
     ? `${currencySign}${budgetMin} - ${currencySign}${budgetMax}`
-    : budgetMin || budgetMax 
+    : budgetMin || budgetMax
       ? `${currencySign}${budgetMin || budgetMax}`
       : 'N/A';
 
 
-      
+
   // Format submit date
   const formattedDate = submitdate ? formatUnixToPakistanTime(submitdate) : 'N/A';
- 
+
   // Get bid count
   const bidCount = bid_stats?.bid_count || 0;
 
- const isPaymentVerified = users?.[project.owner_id]?.status?.payment_verified || `N/A`;
+  const isPaymentVerified = users?.[project.owner_id]?.status?.payment_verified || `N/A`;
 
 
-    const nowUnix = Math.floor(Date.now() / 1000);
-    const isNew = isProjectNew(submitdate, nowUnix);
+  const nowUnix = Math.floor(Date.now() / 1000);
 
   // Check if user has already bid on this project
   const hasAlreadyBid = bidService.hasBidOnProject(id);
@@ -148,7 +146,7 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
           break;
         }
       }
-     if (owner) break;
+      if (owner) break;
     }
 
     // fallback to other common owner locations
@@ -178,7 +176,7 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
 
 
 
-    // Handle opening bid modal
+  // Handle opening bid modal
   const handleOpenBid = () => {
     if (hasAlreadyBid) {
       alert('You have already placed a bid on this project.');
@@ -186,9 +184,9 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
     }
     setIsModalOpen(true);
   };
-  
-    // Handle bid submission from modal
- const handleSubmitBid = async ({ amount, period, description }) => {
+
+  // Handle bid submission from modal
+  const handleSubmitBid = async ({ amount, period, description }) => {
     try {
       const projectMeta = {
         seo_url,
@@ -257,11 +255,10 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
           <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
             ID: {id}
           </span>
-          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-            status === 'active' 
-              ? 'bg-green-100 text-green-800' 
+          <span className={`text-xs px-2 py-1 rounded-full font-medium ${status === 'active'
+              ? 'bg-green-100 text-green-800'
               : 'bg-gray-100 text-gray-800'
-          }`}>
+            }`}>
             {status.charAt(0).toUpperCase() + status.slice(1)}
           </span>
         </div>
@@ -269,13 +266,13 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
         <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2 leading-tight">
           {title}
         </h3>
-        
+
         {/* Description
         <p className="text-gray-600 text-sm mb-4 leading-relaxed">
           {truncatedDescription}
         </p> */}
 
-          {/* Description */}
+        {/* Description */}
         <p className="text-gray-600 text-sm mb-2 leading-relaxed">
           {showFullDesc ? projectDescription : truncatedDescription}
         </p>
@@ -288,9 +285,9 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
             {showFullDesc ? 'Show less' : 'Read more...'}
           </button>
         )}
-        
 
-        
+
+
 
         {/* Project Details Grid */}
         <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
@@ -305,46 +302,43 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
             </span>
           </div>
         </div>
-              {/* Client Country */}
-       <div className="bg-gray-50 p-2 rounded-lg mb-4">
+        {/* Client Country */}
+        <div className="bg-gray-50 p-2 rounded-lg mb-4">
           <span className="text-gray-500 block text-xs">Client Country</span>
           <span className="font-medium text-gray-900 text-sm">
             {ownerCountry || 'N/A'}
           </span>
         </div>
 
-              {/* Currency Information */}
-              <div className={`p-3 rounded-lg mb-4 ${
-          currencyCode === 'USD' 
-            ? 'bg-green-50 border border-green-200' 
+        {/* Currency Information */}
+        <div className={`p-3 rounded-lg mb-4 ${currencyCode === 'USD'
+            ? 'bg-green-50 border border-green-200'
             : 'bg-yellow-50 border border-yellow-200'
-        }`}>
+          }`}>
           <div className="flex items-center justify-between text-xs">
-            <span className={`font-medium ${
-              currencyCode === 'USD' ? 'text-green-600' : 'text-yellow-600'
-            }`}>Currency</span>
-            <span className={`${
-              currencyCode === 'USD' ? 'text-green-800' : 'text-yellow-800'
-            }`}>
+            <span className={`font-medium ${currencyCode === 'USD' ? 'text-green-600' : 'text-yellow-600'
+              }`}>Currency</span>
+            <span className={`${currencyCode === 'USD' ? 'text-green-800' : 'text-yellow-800'
+              }`}>
               {currencyCode} ({currencySign}) - {currencyName}
             </span>
           </div>
-        
-         {/* Payment Verified */}
-         <span className="text-gray-500 block text-xs mt-2">Payment Verified</span>
+
+          {/* Payment Verified */}
+          <span className="text-gray-500 block text-xs mt-2">Payment Verified</span>
           <span className="font-medium text-gray-900 text-sm">
             {isPaymentVerified === true ? 'Yes' : isPaymentVerified === false ? 'No' : 'N/A'}
           </span>
         </div>
-           {/* Client Review */}
-       <div className="bg-gray-50 p-2 rounded-lg mb-4">
+        {/* Client Review */}
+        <div className="bg-gray-50 p-2 rounded-lg mb-4">
           <span className="text-gray-500 block text-xs">Client Review</span>
           <span className="font-medium text-gray-900 text-sm">
             {typeof clientReview === 'number' ? `${clientReview.toFixed(1)} / 5` : 'No reviews yet'}
           </span>
         </div>
-       
-        
+
+
       </div>
 
       {/* Footer */}
@@ -365,7 +359,7 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
               <span className="text-gray-600">{bidCount} bids</span>
             </div>
           </div>
-          
+
           <div className="text-xs text-gray-500">
             {formattedDate}
           </div>
@@ -411,8 +405,8 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
             disabled={!seo_url}
             className={`
               text-xs py-2 px-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-1 flex-1
-              ${!seo_url 
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+              ${!seo_url
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 : 'bg-gray-600 hover:bg-gray-700 text-white shadow-sm hover:shadow-md transform hover:-translate-y-0.5'
               }
             `}
@@ -422,17 +416,17 @@ const ProjectCard = ({ project, bidderType,usersMap= null }) => {
             </svg>
             <span>{seo_url ? 'View Project' : 'No Link'}</span>
           </button>
-          
-              {/* Place Bid Button */}
-              <button
+
+          {/* Place Bid Button */}
+          <button
             onClick={handleOpenBid}
             disabled={loading || hasAlreadyBid}
             className={`
               text-xs py-2 px-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-1 flex-1
-              ${hasAlreadyBid 
-                ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
-                : loading 
-                  ? 'bg-blue-100 text-blue-600 cursor-not-allowed' 
+              ${hasAlreadyBid
+                ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                : loading
+                  ? 'bg-blue-100 text-blue-600 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transform hover:-translate-y-0.5'
               }
             `}

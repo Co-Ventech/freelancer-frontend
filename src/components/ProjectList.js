@@ -14,34 +14,36 @@ const ProjectList = ({ projects, loading, error, lastFetchTime, newCount, oldCou
     return () => clearInterval(t);
   }, []);
 
-  const lastFetchRelative = useMemo(() => {
-    if (!lastFetchTime) return 'N/A';
+  // const lastFetchRelative = useMemo(() => {
+  //   if (!lastFetchTime) return 'N/A';
     
-    const diffSec = Math.max(0, Math.floor((nowMs - lastFetchTime) / 1000));
-    if (diffSec < 60) return `${diffSec}s ago`;
-    const min = Math.floor(diffSec / 60);
-    const sec = diffSec % 60;
-    return `${min}m ${sec}s ago`;
-  }, [nowMs, lastFetchTime]);
+  //   const diffSec = Math.max(0, Math.floor((nowMs - lastFetchTime) / 1000));
+  //   if (diffSec < 60) return `${diffSec}s ago`;
+  //   const min = Math.floor(diffSec / 60);
+  //   const sec = diffSec % 60;
+  //   return `${min}m ${sec}s ago`;
+  // }, [nowMs, lastFetchTime]);
 
-  const lastFetchAbsolutePK = useMemo(() => {
-    if (!lastFetchTime) return 'N/A';
-    try {
-      return new Date(lastFetchTime).toLocaleString('en-US', {
-        timeZone: 'Asia/Karachi',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
-    } catch {
-      return 'N/A';
-    }
-  }, [lastFetchTime]);
+  // const lastFetchAbsolutePK = useMemo(() => {
+  //   if (!lastFetchTime) return 'N/A';
+  //   try {
+  //     return new Date(lastFetchTime).toLocaleString('en-US', {
+  //       timeZone: 'Asia/Karachi',
+  //       year: 'numeric',
+  //       month: 'short',
+  //       day: 'numeric',
+  //       hour: '2-digit',
+  //       minute: '2-digit',
+  //       hour12: true
+  //     });
+  //   } catch {
+  //     return 'N/A';
+  //   }
+  // }, [lastFetchTime]);
 
   // Split projects into New (<= 60s) and Older
+  
+  
   const { newProjects, oldProjects } = useMemo(() => {
     const nowUnix = Math.floor(nowMs / 1000);
     const n = [];

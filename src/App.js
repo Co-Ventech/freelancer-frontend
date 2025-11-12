@@ -26,10 +26,7 @@ const MainApp = () => {
   const navigate = useNavigate();
   const { user: fbUser, logout } = useFirebaseAuth();
   // Multi-account token switching (Freelancer API credentials)
-  const { currentUser, bidderId } = useAuth();
-  const [autoBidEnabledMap] = useState({});
-  const autoBidEnabled = !!autoBidEnabledMap[currentUser];
-  const [autoBidType, setAutoBidType] = useState('all');
+  const { bidderId } = useAuth();
   const fetchUsers = useUsersStore(state => state.fetchUsers);
   const updateSubUser = useUsersStore((s) => s.updateSubUser);
   const selectedUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
@@ -69,7 +66,7 @@ const MainApp = () => {
     oldCount,
     usersMap,
 
-  } = useFreelancerAPI({ bidderType: autoBidEnabled ? 'auto' : 'manual', autoBidType });
+  } = useFreelancerAPI();
 
   const { modalState, closeModal } = useModal();
 
@@ -206,7 +203,6 @@ const MainApp = () => {
             value={selectedUser?.autobid_enabled_for_job_type}
             onChange={async (e) => {
               const val = e.target.value;
-              setAutoBidType(val);
               try {
                 await patchSelectedUser({ autobid_enabled_for_job_type: val });
               }
