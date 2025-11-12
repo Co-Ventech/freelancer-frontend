@@ -13,7 +13,6 @@ const ProposalModal = ({
   projectId,
   projectTitle,
   projectDescription,
-  budgetDisplay,
   type,
   budget,
   url,
@@ -30,7 +29,7 @@ const ProposalModal = ({
   // const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
   // const selectedSubUser = useUsersStore.getState().getSelectedUser?.() || null;
   // const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;
- const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
+ const { currentUser,  bidderId } = useAuth();
   // get selected sub-user from Zustand (reactive inside modal)
   const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
   const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;

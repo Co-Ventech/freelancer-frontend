@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { bidService } from '../services/bidService';
 import { useAuth } from '../contexts/AuthContext';
 import { postBid } from '../utils/api';
 import { useUsersStore } from '../store/useUsersStore';
