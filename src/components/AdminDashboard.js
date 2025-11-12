@@ -136,14 +136,16 @@ const AdminDashboard = () => {
   };
 
 
-  const buildBidsUrl = () => {
-    const params = [];
-    if (bidderFilter && bidderFilter !== 'ALL') params.push(`bidder_id=${encodeURIComponent(bidderFilter)}`);
-    if (bidderTypeFilter && bidderTypeFilter !== 'ALL') params.push(`bidder_type=${encodeURIComponent(bidderTypeFilter)}`);
-    if (projectTypeFilter && projectTypeFilter !== 'ALL') params.push(`type=${encodeURIComponent(projectTypeFilter)}`);
-    const qs = params.length ? `?${params.join('&')}` : '';
-    return `${API_BASE}/bids${qs}`;
-  };
+const buildBidsUrl = useCallback(() => {
+  const params = [];
+  if (bidderFilter && bidderFilter !== 'ALL') params.push(`bidder_id=${encodeURIComponent(bidderFilter)}`);
+  if (bidderTypeFilter && bidderTypeFilter !== 'ALL') params.push(`bidder_type=${encodeURIComponent(bidderTypeFilter)}`);
+  if (projectTypeFilter && projectTypeFilter !== 'ALL') params.push(`type=${encodeURIComponent(projectTypeFilter)}`);
+
+  const qs = params.length ? `?${params.join("&")}` : "";
+  return `${API_BASE}/bids${qs}`;
+}, [bidderFilter, bidderTypeFilter, projectTypeFilter]);  // ✅ Add missing dependencies
+
 
 
   const handleLogout = async () => {

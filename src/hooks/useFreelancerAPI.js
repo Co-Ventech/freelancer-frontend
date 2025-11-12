@@ -35,13 +35,12 @@ const getOwnerCountry = (project, usersMap = {}) => {
     '';
   return country;
 };
-const controlCharRegex = /^[^\u0000-\u007F]/;
+const controlCharRegex = new RegExp("[^\\u0000-\\u007F]");
+
 
 export const useFreelancerAPI = () => {
   const selectedKey = useUsersStore((s) => s.selectedKey);
 
-  // Keep legacy auth for other app features (not used for sub-user calls)
-  const { currentUser } = useAuth();
   const [projects, setProjects] = useState([]);
   const [usersMapState, setUsersMapState] = useState({});
   const [loading, setLoading] = useState(false);
@@ -234,7 +233,6 @@ export const useFreelancerAPI = () => {
       setProjects(projects);
       try { localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects)); } catch (e) { /* ignore */ }
 
-      // console.log(`Fetched ${projects.length} projects for selected user ${selectedUser?.sub_username || currentUser}`);
     } catch (err) {
       const errorMessage = handleApiError(err);
       setError(errorMessage);
@@ -248,7 +246,8 @@ export const useFreelancerAPI = () => {
       isFetchingRef.current = false;
       setLoading(false);
     }
-  }, [getUserInfo, getUserSkills, getProjectsBySkills, currentUser]);
+   }, [getUserInfo, getUserSkills, getProjectsBySkills]);
+
 
   useEffect(() => {
     let intervalId = null;
