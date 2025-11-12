@@ -117,8 +117,6 @@ export const useFreelancerAPI = () => {
       );
       const skills = response.data?.result?.topSkills?.map((skill) => skill.id) || [];
       skillsCacheRef.current = { ...skillsCacheRef.current, [userId]: skills };
-      // keep UI-level cache in sync (optional)
-      // setSkillsCache((prevCache) => ({ ...prevCache, [userId]: skills }));
       return skills;
     } catch (err) {
       console.error('Error fetching user skills:', err);
@@ -254,11 +252,11 @@ export const useFreelancerAPI = () => {
     let scheduledTimeout = null;
 
     if (!selectedKey) {
-      // clear projects when no selected user
       setProjects([]);
       setUsersMapState({});
       return;
     }
+     
 
     const runFetchOrSchedule = () => {
       // if currently in cooldown, schedule a single retry when cooldown ends
