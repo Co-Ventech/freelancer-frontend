@@ -96,20 +96,17 @@ const SuccessBidsPage = () => {
       // read pagination from response if available
       const pagination = res.data?.pagination || res.data?.meta || res.data?.paging || null;
       if (pagination) {
-         const respPage = Number(pagination.page) || page;
-
+          const respPage = Number(pagination.page) || page;
         const respLimit = Number(pagination.limit || pagination.offset) || limit;
-        // the backend here returns 'count' as number of items in this page and 'is_next' flag
-        const respCountForPage = Number(pagination.count);
         const respIsNext = !!pagination.is_next;
-        // only update if values changed (avoid resetting user page/limit unexpectedly)
         setPage(respPage);
         setLimit(respLimit);
         setPaginationIsNext(respIsNext);
+        const possibleTotal = pagination.total ?? pagination.total_count ?? pagination.totalCount ?? pagination.count;
+        const numericTotal = typeof possibleTotal !== 'undefined' && possibleTotal !== null ? Number(possibleTotal) : null;
+        setTotalCount(Number.isFinite(numericTotal) ? numericTotal : null);
 
-        // if backend supplies a global total, set it; otherwise keep null
-        const possibleTotal = Number(pagination.total || pagination.total_count || pagination.totalCount);
-        setTotalCount(Number.isFinite(possibleTotal) && possibleTotal > 0 ? possibleTotal : null);
+        
         // use respCountForPage to determine end range
       } else {
         // if no pagination provided, clear paginationIsNext and totalCount to conservative defaults
@@ -197,7 +194,7 @@ const SuccessBidsPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white p-4 rounded shadow">
             <div className="text-sm text-gray-500">Saved Bids</div>
-            <div className="text-xl font-semibold">{savedBids.length}</div>
+          <div className="text-xl font-semibold">{totalCount ?? savedBids.length}</div>   
           </div>
           <div className="bg-white p-4 rounded shadow">
             <div className="text-sm text-gray-500">Unique Bidders</div>

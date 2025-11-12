@@ -97,15 +97,19 @@ const AdminDashboard = () => {
 
        const pagination = res.data?.pagination || res.data?.meta || null;
       if (pagination) {
-        const respPage = Number(pagination.page) || page;
+         const respPage = Number(pagination.page) || page;
         const respLimit = Number(pagination.limit || pagination.offset) || limit;
-        const respCount = Number(pagination.count) || (Array.isArray(bids) ? bids.length : 0);
         const respIsNext = !!pagination.is_next;
         setPage(respPage);
         setLimit(respLimit);
         setPaginationIsNext(respIsNext);
+        // prefer explicit 'total' if backend provides it; accept 0 as a valid total too
+        const possibleTotal = pagination.total ?? pagination.total_count ?? pagination.totalCount ?? pagination.count;
+        const numericTotal = typeof possibleTotal !== 'undefined' && possibleTotal !== null ? Number(possibleTotal) : null;
+        setTotalCount(Number.isFinite(numericTotal) ? numericTotal : null);
+
         // backend does not always send total; accept common keys if present
-        const possibleTotal = Number(pagination.total || pagination.total_count || pagination.totalCount);
+        // const possibleTotal = Number(pagination.total || pagination.total_count || pagination.totalCount);
         setTotalCount(Number.isFinite(possibleTotal) && possibleTotal > 0 ? possibleTotal : null);
       } else {
         // fallback
@@ -314,7 +318,7 @@ const buildBidsUrl = useCallback(() => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white p-4 rounded shadow">
             <div className="text-sm text-gray-500">Saved Bids</div>
-            <div className="text-xl font-semibold">{savedBids.length}</div>
+           <div className="text-xl font-semibold">{totalCount ?? savedBids.length}</div>
           </div>
         </div>
 
