@@ -228,7 +228,7 @@ const RegisterForm = () => {
             />
           </div>
 
-          <div className="mb-6">
+          {/* <div className="mb-6">
             <label className="flex items-center">
               <input
                 type="checkbox"
@@ -238,7 +238,7 @@ const RegisterForm = () => {
               />
               <span className="text-gray-700">Register as Admin</span>
             </label>
-          </div>
+          </div> */}
 
           <button
             type="submit"
