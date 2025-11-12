@@ -9,6 +9,11 @@ const SuccessBidsPage = () => {
   const [loadingBids, setLoadingBids] = useState(true);
   const [error, setError] = useState(null);
 
+   // pagination state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+
   // UI state (same pattern as AdminDashboard)
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
   const [bidderFilter, setBidderFilter] = useState('ALL');
@@ -69,6 +74,9 @@ const SuccessBidsPage = () => {
     if (bidderFilter && bidderFilter !== 'ALL') params.push(`bidder_id=${encodeURIComponent(bidderFilter)}`);
     if (bidderTypeFilter && bidderTypeFilter !== 'ALL') params.push(`bidder_type=${encodeURIComponent(bidderTypeFilter)}`);
     if (projectTypeFilter && projectTypeFilter !== 'ALL') params.push(`type=${encodeURIComponent(projectTypeFilter)}`);
+     if (page) params.push(`page=${encodeURIComponent(page)}`);
+    if (limit) params.push(`limit=${encodeURIComponent(limit)}`);
+
     const qs = params.length ? `?${params.join('&')}` : '';
     return `${(API_BASE || '').replace(/\/$/, '')}/bids${qs}`;
   };
@@ -84,6 +92,16 @@ const SuccessBidsPage = () => {
         throw new Error(res?.data?.message || `Failed to load bids: ${res.status}`);
       }
       const bids = Array.isArray(res.data?.data) ? res.data.data : [];
+      // read pagination from response if available
+      const pagination = res.data?.pagination || res.data?.meta || null;
+      if (pagination) {
+        setPage(Number(pagination.page) || page);
+        setLimit(Number(pagination.limit) || limit);
+        setTotalCount(Number(pagination.count) || 0);
+      } else {
+        // if no pagination provided, set totals conservatively
+        setTotalCount(Array.isArray(bids) ? bids.length : 0);
+      }
       setSavedBids(bids);
     } catch (err) {
       console.error('Failed to load bids:', err);
@@ -93,6 +111,13 @@ const SuccessBidsPage = () => {
       setLoadingBids(false);
     }
   };
+  const canPrev = page > 1;
+  const canNext = limit && totalCount ? page * limit < totalCount : savedBids.length === limit;
+  const goPrev = () => { if (canPrev) setPage((p) => p - 1); };
+  const goNext = () => { if (canNext) setPage((p) => p + 1); };
+  const changeLimit = (newLimit) => { setLimit(Number(newLimit)); setPage(1); };
+
+
 
   useEffect(() => {
     loadBids();
@@ -267,6 +292,21 @@ const SuccessBidsPage = () => {
             </table>
           </div>
         )}
+
+           {/* Pagination controls */}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            Showing {(totalCount === 0 && savedBids.length === 0) ? 0 : ((page - 1) * limit) + 1} - {Math.min(page * limit, totalCount || ((page - 1) * limit) + savedBids.length)} of {totalCount || savedBids.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={goPrev} disabled={!canPrev} className={`px-3 py-1 rounded ${canPrev ? 'bg-white border' : 'bg-gray-100 text-gray-400'}`}>Prev</button>
+            <span className="text-sm">Page {page}</span>
+            <button onClick={goNext} disabled={!canNext} className={`px-3 py-1 rounded ${canNext ? 'bg-white border' : 'bg-gray-100 text-gray-400'}`}>Next</button>
+            <select value={limit} onChange={(e) => changeLimit(e.target.value)} className="border px-2 py-1 rounded">
+              {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n} / page</option>)}
+            </select>
+          </div>
+        </div>
 
       </div>
     </div>
