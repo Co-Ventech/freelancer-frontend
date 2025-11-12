@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useFirebaseAuth } from '../contexts/FirebaseAuthContext';
 import { useNavigate } from 'react-router-dom';
 import firebaseAuthService from '../services/firebaseAuth';
@@ -6,8 +6,6 @@ import axios from 'axios';
 import { formatPakistanDate } from '../utils/dateUtils';
 import { getAuthHeaders } from '../utils/api';
 import { useNotifications } from '../contexts/NotificationContext';
-import { useUsersStore } from '../store/useUsersStore';
-
 
 const API_BASE = process.env.REACT_APP_API_BASE_URL || '';
 
@@ -25,7 +23,7 @@ const AdminDashboard = () => {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingBids, setLoadingBids] = useState(true);
   const [error, setError] = useState(null);
-  
+
 
   // view mode: 'grid' or 'list'
   const [viewMode, setViewMode] = useState('grid');
@@ -66,16 +64,7 @@ const AdminDashboard = () => {
   }, [isAdmin, showAllUsersNotifications, getAllPersistedNotifications]);
 
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  // reload bids when any filter changes
-  useEffect(() => {
-    loadBids();
-  }, [bidderFilter, bidderTypeFilter, projectTypeFilter]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
       const data = await firebaseAuthService.getAllUsers();
@@ -85,7 +74,39 @@ const AdminDashboard = () => {
     } finally {
       setLoadingUsers(false);
     }
-  };
+  }, []);
+
+  const loadBids = useCallback(async () => {
+    try {
+      setLoadingBids(true);
+      setError(null);
+      const url = buildBidsUrl();
+      const headers = getAuthHeaders();
+      const res = await axios.get(url, { headers, validateStatus: () => true });
+      if (!(res.status >= 200 && res.status < 300)) {
+        const msg = res?.data?.message || `Failed to load bids: ${res.status}`;
+        throw new Error(msg);
+      }
+      const bids = res?.data?.data || [];
+      setSavedBids(Array.isArray(bids) ? bids : []);
+    } catch (err) {
+      console.error('Failed to load bids:', err);
+      setSavedBids([]);
+      setError(err?.message || 'Failed to load bids');
+    } finally {
+      setLoadingBids(false);
+    }
+  }, [bidderFilter, bidderTypeFilter, projectTypeFilter]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    loadBids();
+  }, [loadBids]);
+  
+  
   // Add this helper function near the top of your component (after state declarations)
   const badgeClass = {
     bidder: 'bg-blue-100 text-blue-800 border-blue-300',
@@ -93,7 +114,7 @@ const AdminDashboard = () => {
     bidType: 'bg-purple-100 text-purple-800 border-purple-300',
     projectType: 'bg-indigo-100 text-indigo-800 border-indigo-300',
     budget: {
-      
+
       low: 'bg-green-100 text-green-800 border-green-300',      // < $100
       medium: 'bg-yellow-100 text-yellow-800 border-yellow-300', // $100-$500
       high: 'bg-red-100 text-red-800 border-red-300',           // > $500
@@ -101,14 +122,14 @@ const AdminDashboard = () => {
   };
 
   const getBidAmountBadgeClass = (amount) => {
-  if (!amount) return 'bg-gray-100 text-gray-800 border-gray-300'; // N/A case
-  if (amount <= 50) return 'bg-green-100 text-green-800 border-green-300';      // Low bid
-  if (amount > 100) return 'bg-yellow-100 text-yellow-800 border-yellow-300';  // Medium bid
-  return 'bg-red-100 text-red-800 border-yellow-300';                             // High bid
-};
+    if (!amount) return 'bg-gray-100 text-gray-800 border-gray-300'; // N/A case
+    if (amount <= 50) return 'bg-green-100 text-green-800 border-green-300';      // Low bid
+    if (amount > 100) return 'bg-yellow-100 text-yellow-800 border-yellow-300';  // Medium bid
+    return 'bg-red-100 text-red-800 border-yellow-300';                             // High bid
+  };
   // Helper function to determine budget color based on amount
   const getBudgetBadgeClass = (min, max) => {
-    const amount = max ||  0;
+    const amount = max || 0;
     if (amount <= 50) return badgeClass.budget.low;
     if (amount >= 50) return badgeClass.budget.high;
     return badgeClass.budget.high;
@@ -124,27 +145,6 @@ const AdminDashboard = () => {
     return `${API_BASE}/bids${qs}`;
   };
 
-  const loadBids = async () => {
-    try {
-      setLoadingBids(true);
-      setError(null);
-      const url = buildBidsUrl();
-     const headers = getAuthHeaders();
-      const res = await axios.get(url, { headers, validateStatus: () => true });
-      if (!(res.status >= 200 && res.status < 300)) {
-        const msg = res?.data?.message || `Failed to load bids: ${res.status}`;
-        throw new Error(msg);
-      }
-      const bids = res?.data?.data || [];
-      setSavedBids(Array.isArray(bids) ? bids : []);
-    } catch (err) {
-      console.error('Failed to load bids:', err);
-      setSavedBids([]);
-      setError(err?.message || 'Failed to load bids');
-    } finally {
-      setLoadingBids(false);
-    }
-  };
 
   const handleLogout = async () => {
     await logout();
@@ -272,18 +272,10 @@ const AdminDashboard = () => {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* <div className="bg-white p-4 rounded shadow">
-            <div className="text-sm text-gray-500">Total Users</div>
-            <div className="text-xl font-semibold">{users.length}</div>
-          </div> */}
           <div className="bg-white p-4 rounded shadow">
             <div className="text-sm text-gray-500">Saved Bids</div>
             <div className="text-xl font-semibold">{savedBids.length}</div>
           </div>
-          {/* <div className="bg-white p-4 rounded shadow">
-            <div className="text-sm text-gray-500">Admin Users</div>
-            <div className="text-xl font-semibold">{users.filter(u => u.role === 'admin').length}</div>
-          </div> */}
         </div>
 
         {/* Content */}
@@ -302,10 +294,10 @@ const AdminDashboard = () => {
                       <h3 className="text-lg font-semibold">{bid.projectTitle}</h3>
                       <div className="text-xs text-gray-500 mt-1">{(bid.type || '').toUpperCase()}</div>
                     </div>
-<div className={`px-3 py-1.5 rounded-lg font-semibold border inline-block ${getBidAmountBadgeClass(bid.amount)}`}>
-  ${bid.amount ?? 'N/A'}
-</div>
-                    {/* <div className="font-medium text-gray-800">${bid.amount ?? 'N/A'}</div> */}
+                    <div className={`px-3 py-1.5 rounded-lg font-semibold border inline-block ${getBidAmountBadgeClass(bid.amount)}`}>
+                      ${bid.amount ?? 'N/A'}
+                    </div>
+
                   </div>
 
                   <p className="text-sm text-gray-600 mt-2 line-clamp-3">{bid.projectDescription}</p>
@@ -356,25 +348,14 @@ const AdminDashboard = () => {
                       Budget: {bid.budget?.minimum != null ? `$${bid.budget.minimum}` : '-'} - {bid.budget?.maximum != null ? `$${bid.budget.maximum}` : '-'}
                     </span>
                   </div>
-  <div className="px-2 py-1 bg-gray-50 rounded text-green-600">
-      Date: {getBidDate(bid)}
-    </div>
-
-
-                  {/* <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                    <span className="px-2 py-1 bg-gray-50 rounded color green">Bidder: {getBidderName(bid.bidder_id)}</span>
-                    <span className="px-2 py-1 bg-gray-50 rounded color orange">Period: {bid.period ?? 'N/A'}d</span>
-                    <span className="px-2 py-1 bg-gray-50 rounded">Bid Type: {bid.bidder_type || 'N/A'}</span>
-                    <span className="px-2 py-1 bg-gray-50 rounded">Project Type: {(bid.type || 'N/A').toUpperCase()}</span>
-                    <span className="px-2 py-1 bg-gray-50 rounded">
-                      Budget: {bid.budget?.minimum != null ? `$${bid.budget.minimum}` : '-'} - {bid.budget?.maximum != null ? `$${bid.budget.maximum}` : '-'}
-                    </span>
-                  </div> */}
+                  <div className="px-2 py-1 bg-gray-50 rounded text-green-600">
+                    Date: {getBidDate(bid)}
+                  </div>
 
                   <div className="mt-3 flex-1">
                     <div className="text-sm text-gray-500 mb-2">Scores</div>
                     <div className="grid grid-cols-2 gap-2 text-sm">
-              {bid.scores ? Object.entries(bid.scores).slice(0, 8).map(([k, v]) => {
+                      {bid.scores ? Object.entries(bid.scores).slice(0, 8).map(([k, v]) => {
                         const formatScore = (val) => {
                           if (val == null) return '-';
                           if (typeof val !== 'number') return String(val);
@@ -411,7 +392,7 @@ const AdminDashboard = () => {
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Bid Type</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Amount</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Period</th>
-                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Link</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Link</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -429,8 +410,8 @@ const AdminDashboard = () => {
                         className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
                       >
                         View
-                     </button>
-                   </td>
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

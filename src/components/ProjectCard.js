@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { formatUnixToPakistanTime } from '../utils/dateUtils';
 import { useBidding } from '../hooks/useBidding';
 import bidService from '../services/bidService';
-import { isProjectNew } from '../utils/apiUtils';
 import ProposalModal from './ProposalModal';
 import { useFreelancerAPI } from '../hooks/useFreelancerAPI';
 /**
@@ -90,8 +89,7 @@ const ProjectCard = ({ project, usersMap = null }) => {
 
 
   const ownerCountry = getOwnerCountry(project);
-  // --- end country extraction ---
-  // ...existing code...
+
 
   // Format currency information
   const currencyCode = currency?.code || 'USD';
@@ -117,9 +115,6 @@ const ProjectCard = ({ project, usersMap = null }) => {
   const bidCount = bid_stats?.bid_count || 0;
 
   const isPaymentVerified = users?.[project.owner_id]?.status?.payment_verified || `N/A`;
-
-
-  const nowUnix = Math.floor(Date.now() / 1000);
 
   // Check if user has already bid on this project
   const hasAlreadyBid = bidService.hasBidOnProject(id);
@@ -219,26 +214,6 @@ const ProjectCard = ({ project, usersMap = null }) => {
       alert(`Error: ${err?.message || 'An unexpected error occurred'}`);
     }
   };
-  // Handle bid placement
-  // const handlePlaceBid = async () => {
-  //   if (hasAlreadyBid) {
-  //     alert('You have already placed a bid on this project.');
-  //     return;
-  //   }
-
-  //   const result = await placeBid(
-  //     id,
-  //     750, // Default amount
-  //     5,   // Default period (5 days)
-  //     `I am interested in working on "${title}". I have the necessary skills and experience to deliver high-quality results within the specified timeframe. Let's discuss the project requirements in detail.`
-  //   );
-
-  //   if (result.success) {
-  //     console.log('Bid response:', result.data);
-  //   }
-  // };
-
-  // Handle view project link
   const handleViewProject = () => {
     if (seo_url) {
       const projectUrl = `https://www.freelancer.com/projects/${seo_url}`;
@@ -266,11 +241,6 @@ const ProjectCard = ({ project, usersMap = null }) => {
         <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2 leading-tight">
           {title}
         </h3>
-
-        {/* Description
-        <p className="text-gray-600 text-sm mb-4 leading-relaxed">
-          {truncatedDescription}
-        </p> */}
 
         {/* Description */}
         <p className="text-gray-600 text-sm mb-2 leading-relaxed">

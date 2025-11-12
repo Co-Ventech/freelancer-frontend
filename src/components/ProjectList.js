@@ -5,7 +5,7 @@ import { isProjectNew } from '../utils/apiUtils';
 /**
  * ProjectList component - renders a grid of project cards
  */
-const ProjectList = ({ projects, loading, error, lastFetchTime, newCount, oldCount, bidderType, usersMap }) => {
+const ProjectList = ({ projects, loading, error, newCount, oldCount, bidderType, usersMap }) => {
   // live clock (ms) to update "time since last fetch"
   const [nowMs, setNowMs] = useState(Date.now());
 

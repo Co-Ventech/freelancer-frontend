@@ -26,29 +26,22 @@ const ProposalModal = ({
   const [submitting, setSubmitting] = useState(false);
   const [loadingProposal, setLoadingProposal] = useState(false);
   const [error, setError] = useState(null);
-  // const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
-  // const selectedSubUser = useUsersStore.getState().getSelectedUser?.() || null;
-  // const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;
   const { currentUser, bidderId } = useAuth();
-  // get selected sub-user from Zustand (reactive inside modal)
   const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
   const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;
   const displayName = selectedSubUser?.sub_username || selectedSubUser?.name || currentUser || 'DEFAULT';
 
   const [isAmountEdited, setIsAmountEdited] = useState(false);
   const [isAiProposalEnabled, setIsAiPropoalEnabled] = useState(false);
-  //  const displayName = selectedSubUser?.sub_username || selectedSubUser?.name || currentUser
-  const calculatedAmount = useMemo(() => {
+ const calculatedAmount = useMemo(() => {
     return calculateBidAmount({ type, budget });
-  }, [type, budget]);
+  }, [type, budget, calculateBidAmount]);
 
   // Calculate bid amount when modal opens
   useEffect(() => {
     if (!open) return;
 
     if (calculatedAmount === null) {
-      // setError('This project does not meet the bidding criteria, you can place a bid manually.');
-      // If budget max is available, pre-fill the amount with the max so user can edit it
       if (!isAmountEdited) {
         if (budget && (budget.maximum || budget.minimum)) {
           // prefer maximum if present, otherwise use minimum
@@ -66,51 +59,48 @@ const ProposalModal = ({
     }
   }, [open, budget, error, calculatedAmount, isAmountEdited, amount]);
 
-  const fetchProposal = async () => {
-    setLoadingProposal(true);
-    setError(null);
-
-    try {
-      console.log('Sending API request:', {
-        id: projectId,
-        title: projectTitle,
-        description: projectDescription,
-      });
-
-      console.log("Current User: ", currentUser)
-
-      const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/generate-proposal`, {
-        id: projectId,
-        title: projectTitle,
-        description: projectDescription,
-        name: displayName
-      });
-
-      if (response.status === 200) {
-        setProposal(response.data.proposal);
-      }
-    } catch (err) {
-      console.error('Error generating proposal:', err);
-      setProposal('Failed to generate proposal.');
-      setError('Could not generate proposal. Please try again.');
-    } finally {
-      setLoadingProposal(false);
-    }
-  };
-
-  // Fetch dynamic proposal when modal opens
-
-
+   // generate proposal when AI toggle enabled — define fetch inline so effect deps are explicit
   useEffect(() => {
+    if (!open) return;
+
     if (isAiProposalEnabled) {
-      fetchProposal();
+      const ctrl = new AbortController();
+      const doFetch = async () => {
+        setLoadingProposal(true);
+        setError(null);
+        try {
+          const response = await axios.post(
+            `${process.env.REACT_APP_API_BASE_URL}/generate-proposal`,
+            {
+              id: projectId,
+              title: projectTitle,
+              description: projectDescription,
+              name: displayName,
+            },
+            { signal: ctrl.signal }
+          );
+          if (response?.status === 200) {
+            setProposal(response.data.proposal);
+          }
+        } catch (err) {
+          // ignore cancellation
+          if (err?.name === 'CanceledError' || err?.message === 'canceled') {
+            return;
+          }
+          console.error('Error generating proposal:', err);
+          setProposal('Failed to generate proposal.');
+          setError('Could not generate proposal. Please try again.');
+        } finally {
+          setLoadingProposal(false);
+        }
+      };
+      doFetch();
+      return () => ctrl.abort();
     } else {
       const generalProposal = getGeneralProposal(displayName);
       setProposal(generalProposal);
     }
-  }, [isAiProposalEnabled, displayName])
-
-
+  }, [isAiProposalEnabled, displayName, projectId, projectTitle, projectDescription, open]);
 
   // Persist on change (debounced light)
   useEffect(() => {
@@ -128,28 +118,11 @@ const ProposalModal = ({
     setError(null);
     setSubmitting(true);
     try {
-
-
-
       await onSubmit({
         amount: Number(amount),
         period: Number(period),
         description: proposal
       });
-
-      // Save bid history
-      // await axios.post(`${process.env.REACT_APP_API_BASE_URL}/save-bid-history`, {
-      //   project_id: projectId,
-      //   bidder_id: bidderId,
-      //   amount: Number(amount),
-      //   type: 
-      //   period: Number(period),
-      //   description: proposal,
-      //   projectDescription: projectDescription,
-      //   projectTitle: projectTitle,
-      //   budget: budget,
-      //   bidder_type: "manual"
-      // });
       await saveBidHistory({
         projectId,
         bidderId: selectedBidderId,
@@ -261,10 +234,6 @@ const ProposalModal = ({
                     <div className="text-gray-500">Budget information not available</div>
                   )}
                 </div>
-                {/* <div className="bg-gray-50 rounded-lg p-2 text-xs">
-                  <div className="text-gray-500">Budget</div>
-                  <div className="font-medium text-gray-900">{budgetDisplay}</div>
-                </div> */}
               </div>
             </div>
 

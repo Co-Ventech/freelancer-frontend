@@ -6,10 +6,38 @@ import { useAuth } from '../contexts/AuthContext';
 import { getUnixTimestamp } from '../utils/dateUtils';
 import { API_BASE, getAuthHeaders } from '../utils/api';
 
+// move stable helpers to module scope so hook deps remain simple
+const EXCLUDED_COUNTRIES = [
+  'pakistan', 'india', 'bangladesh', 'indonesia', 'algeria', 'nigeria', 'egypt', 'nepal', 'israel'
+];
+const normalize = (s) => (s || '').toString().trim().toLowerCase();
+const isLocalProject = (proj) => {
+  if (!proj) return false;
+  const v = proj.local;
+  return v === true || v === 'true' || String(v).toLowerCase() === 'true';
+};
+const isExcludedCountry = (countryName) => {
+  if (!countryName) return false;
+  const n = normalize(countryName);
+  return EXCLUDED_COUNTRIES.some((c) => n.includes(c) || c.includes(n));
+};
+const getOwnerCountry = (project, usersMap = {}) => {
+  const ownerId = project.owner_id ?? project.owner?.id ?? project.user_id ?? null;
+  let owner;
+  if (ownerId != null) {
+    owner = usersMap[ownerId] || usersMap[String(ownerId)] || usersMap[Number(ownerId)];
+  }
+  owner = owner || project.owner || project.user || project.users?.[Object.keys(project.users || {})[0]];
+  const country =
+    owner?.location?.country?.name ||
+    owner?.profile?.location?.country?.name ||
+    project.location?.country?.name ||
+    '';
+  return country;
+};
+const controlCharRegex = /^[^\u0000-\u007F]/;
+
 export const useFreelancerAPI = () => {
-  // NOTE: selectedUser is sourced from Zustand (sub-users fetched from your backend).
-  // selectedUser shape expected: { sub_user_access_token, sub_username, user_bid_id, general_proposal, ... }
-  // const selectedUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
   const selectedKey = useUsersStore((s) => s.selectedKey);
 
   // Keep legacy auth for other app features (not used for sub-user calls)
@@ -25,37 +53,7 @@ export const useFreelancerAPI = () => {
   const cooldownUntilRef = useRef(0); // timestamp (ms) until which we should back off on rate-limit
 
 
-  // Countries to completely exclude from fetch/display/auto-bid
-  const EXCLUDED_COUNTRIES = [
-    'pakistan', 'india', 'bangladesh', 'indonesia', 'algeria', 'nigeria', 'egypt', 'nepal', 'israel'
-  ];
-  const normalize = (s) => (s || '').toString().trim().toLowerCase();
 
-  const isLocalProject = (proj) => {
-    if (!proj) return false;
-    const v = proj.local;
-    return v === true || v === 'true' || String(v).toLowerCase() === 'true';
-  };
-  const isExcludedCountry = (countryName) => {
-    if (!countryName) return false;
-    const n = normalize(countryName);
-    return EXCLUDED_COUNTRIES.some((c) => n.includes(c) || c.includes(n));
-  };
-
-  const getOwnerCountry = (project, usersMap = {}) => {
-    const ownerId = project.owner_id ?? project.owner?.id ?? project.user_id ?? null;
-    let owner;
-    if (ownerId != null) {
-      owner = usersMap[ownerId] || usersMap[String(ownerId)] || usersMap[Number(ownerId)];
-    }
-    owner = owner || project.owner || project.user || project.users?.[Object.keys(project.users || {})[0]];
-    const country =
-      owner?.location?.country?.name ||
-      owner?.profile?.location?.country?.name ||
-      project.location?.country?.name ||
-      '';
-    return country;
-  };
 
   const handleApiError = (error) => {
     if (error.response) {
@@ -74,9 +72,6 @@ export const useFreelancerAPI = () => {
       return error.message || 'An unexpected error occurred.';
     }
   };
-
-  // Resolve selected sub-user and return backend-provided bidder id (user_bid_id).
-  // Wait briefly for store to populate to avoid race on initial app load.
   const getUserInfo = useCallback(async () => {
     const waitForSelection = async (timeoutMs = 5000, pollMs = 200) => {
       const start = Date.now();
@@ -165,10 +160,8 @@ export const useFreelancerAPI = () => {
     }
   }, []);
 
-  const [lastFetchTime, setLastFetchTime] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.LAST_FETCH);
-    return saved ? parseInt(saved, 10) : null;
-  });
+  const lastFetchTimeRef = useRef(null);
+
 
   const loadProjectsFromStorage = useCallback(() => {
     try {
@@ -183,7 +176,7 @@ export const useFreelancerAPI = () => {
         });
         setProjects(filtered);
         const savedFetch = localStorage.getItem(STORAGE_KEYS.LAST_FETCH);
-        if (savedFetch) setLastFetchTime(parseInt(savedFetch, 10));
+       if (savedFetch) lastFetchTimeRef.current = parseInt(savedFetch, 10);
         return filtered;
       }
     } catch (error) {
@@ -226,9 +219,9 @@ export const useFreelancerAPI = () => {
       projects = projects.filter((project) => {
         const { currency, budget, NDA, title } = project;
         const ownerCountry = getOwnerCountry(project, usersMap);
-        if (isExcludedCountry(ownerCountry)) return false;
+    if (isExcludedCountry(ownerCountry)) return false;
         if (isLocalProject(project)) return false;
-        if (/^[^\u0000-\u007F]/.test(title)) return false;
+    if (controlCharRegex.test(title)) return false;
         if ((currency?.code || '').toUpperCase() === 'INR') return false;
         if (budget?.minimum && Number(budget.minimum) <= 5) return false;
         if (NDA === true || project.upgrades?.NDA === true) return false;
