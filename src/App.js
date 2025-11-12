@@ -19,20 +19,18 @@ import { useNavigate } from 'react-router-dom';
 import SubUserRegister from './components/SubUserRegister';
 import { useUsersStore } from './store/useUsersStore';
 import UserSwitcher from './components/UserSwitcher';
-// import { useFirebaseAuth } from './contexts/FirebaseAuthContext';
+
 
 
 const MainApp = () => {
   const navigate = useNavigate();
-  // Firebase authenticated user
   const { user: fbUser, logout } = useFirebaseAuth();
   // Multi-account token switching (Freelancer API credentials)
-  const { currentUser, availableUsers, switchUser, bidderId } = useAuth();
-  const [autoBidEnabledMap, setAutoBidEnabledMap] = useState({});
+  const { currentUser, bidderId } = useAuth();
+  const [autoBidEnabledMap] = useState({});
   const autoBidEnabled = !!autoBidEnabledMap[currentUser];
   const [autoBidType, setAutoBidType] = useState('all');
   const fetchUsers = useUsersStore(state => state.fetchUsers);
-  const selectedKey = useUsersStore(state => state.selectedKey);
   const updateSubUser = useUsersStore((s) => s.updateSubUser);
   const selectedUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
   const [updatingSubUser, setUpdatingSubUser] = useState(false);
@@ -56,7 +54,7 @@ const MainApp = () => {
       }
     };
     _load();
-  }, [fbUser?.uid, fetchUsers]);
+  }, [fbUser, fetchUsers]);
 
   useEffect(() => {
     try { localStorage.setItem('AUTO_BID_USE_AI', useAiProposal ? 'true' : 'false'); } catch { }
@@ -66,7 +64,6 @@ const MainApp = () => {
     loading,
     error,
     fetchRecentProjects,
-    clearError,
     retryFetch,
     newCount,
     oldCount,
@@ -89,36 +86,6 @@ const MainApp = () => {
     return () => clearInterval(interval);
   }, [fetchRecentProjects, loading]);
 
-  // // Automatically place bids when AutoBid is enabled and cooldown is false
-  // useEffect(() => {
-  //   console.log(autoBidEnabled, projects.length)
-  //   if (autoBidEnabled && projects.length > 0) {
-  //     console.log("Checking Project for Autobid: ",projects.length)
-  //     autoPlaceBids();
-  //   }
-  // }, [autoBidEnabled, projects, autoPlaceBids]);
-
-
-  // // Automatically place bids after fetching projects
-  // useEffect(() => {
-  //   if (projects.length > 0) {
-  //     autoPlaceBids();
-  //   }
-  // }, [projects, autoPlaceBids]);
-
-  // useEffect(() => {
-  //   loadProjectsFromStorage();
-  // }, [loadProjectsFromStorage]);
-
-  const handleFetchProjects = async () => {
-    try {
-      clearError();
-      await fetchRecentProjects();
-    } catch (err) {
-      console.error('Failed to fetch projects:', err.message);
-    }
-  };
-
   const handleRetry = async () => {
     try {
       await retryFetch();
@@ -127,10 +94,6 @@ const MainApp = () => {
     }
   };
 
-  const handleProjectsFetched = (projects) => {
-    console.log('Received projects from hardcoded fetch:', projects.length);
-
-  };
   const handleSubmitBid = async ({ amount, period, description }) => {
     const { projectId } = modalState.data;
     const result = await placeBid(projectId, amount, period, description, bidderId);
@@ -362,8 +325,6 @@ const MainApp = () => {
           onRetry={handleRetry}
           onUserProjectsFetched={(userKey, projects, metadata) => {
             console.log(`Received ${projects.length} projects from ${userKey}`);
-            // Update your main project list or handle as needed
-            // setProjects(projects); // or however you want to handle it
           }}
         />
 
@@ -384,31 +345,6 @@ const MainApp = () => {
           onSubmit={handleSubmitBid}
           projectData={modalState.data}
         />
-      )}
-    </div>
-  );
-};
-
-
-
-/**
- * Auth Gate Component
- */
-const AuthGate = () => {
-  const [authMode, setAuthMode] = useState('login');
-
-  return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-    }}>
-      {authMode === 'login' ? (
-        <LoginForm onSwitchToRegister={() => setAuthMode('register')} />
-      ) : (
-        <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
       )}
     </div>
   );
@@ -437,12 +373,9 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   return children;
 };
 
-/**
- * Main App with Firebase Auth Gate
- */
 function App() {
   // Gate on Firebase auth; keep token switching in AuthContext separate
-  const { user: fbUser, loading: fbLoading, isAdmin } = useFirebaseAuth();
+  const { user: fbUser, loading: fbLoading} = useFirebaseAuth();
 
   if (fbLoading) {
     return (
@@ -473,7 +406,6 @@ function App() {
                 <Routes>
                   <Route path="/login" element={<LoginForm />} />
                   <Route path="/register" element={<RegisterForm />} />
-                  {/* <Route path="/sussess-bids" element={<SuccessBidsPage />} /> */}
                   <Route path="/bids" element={<SuccessBidsPage />} />
 
                   <Route
@@ -493,15 +425,6 @@ function App() {
                     }
                   />
 
-                  {/* <Route
-                  path="/success-bids"
-                  element={
-                    <ProtectedRoute>
-                      <SuccessBidsPage />
-                    </ProtectedRoute>
-                  }
-                /> */}
-
                   <Route
                     path="/admin"
                     element={
@@ -520,29 +443,6 @@ function App() {
       </Router>
     </ErrorBoundary>
   );
-  // return (
-
-  //   <Router>
-  //     <ErrorBoundary>
-  //    {fbUser ? (
-  //         <Routes>
-
-
-  //           <Route path="/" element={isAdmin ? <AdminDashboard /> : <MainApp />} />
-
-  //           <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />} />
-  //           <Route path="/bids" element={<SuccessBidsPage />} />
-  //           <Route path="*" element={<Navigate to={isAdmin ? "/admin" : "/"} replace />} />
-  //         </Routes>
-  //       ) : (
-  //         <AuthGate />
-  //       )}
-  //     </ErrorBoundary>
-  //   </Router>
-  //   // <ErrorBoundary>
-  //   //   {fbUser ? <MainApp /> : <AuthGate />}
-  //   // </ErrorBoundary>
-  // );
 }
 
 export default App;
