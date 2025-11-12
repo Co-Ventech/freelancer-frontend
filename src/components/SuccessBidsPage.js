@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo , useCallback} from 'react';
 import axios from 'axios';
 import { API_BASE, getAuthHeaders } from '../utils/api';
 import { useUsersStore } from '../store/useUsersStore';
@@ -12,7 +12,8 @@ const SuccessBidsPage = () => {
    // pagination state
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [totalCount, setTotalCount] = useState(0);
+   const [totalCount, setTotalCount] = useState(null);
+  const [paginationIsNext, setPaginationIsNext] = useState(false);
 
   // UI state (same pattern as AdminDashboard)
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
@@ -69,19 +70,19 @@ const SuccessBidsPage = () => {
     return 'bg-red-100 text-red-800 border-yellow-300';
   };
 
-  const buildBidsUrl = () => {
+ const buildBidsUrl = useCallback(() => {
     const params = [];
     if (bidderFilter && bidderFilter !== 'ALL') params.push(`bidder_id=${encodeURIComponent(bidderFilter)}`);
     if (bidderTypeFilter && bidderTypeFilter !== 'ALL') params.push(`bidder_type=${encodeURIComponent(bidderTypeFilter)}`);
     if (projectTypeFilter && projectTypeFilter !== 'ALL') params.push(`type=${encodeURIComponent(projectTypeFilter)}`);
-     if (page) params.push(`page=${encodeURIComponent(page)}`);
-    if (limit) params.push(`limit=${encodeURIComponent(limit)}`);
-
+    params.push(`page=${encodeURIComponent(page)}`);
+    params.push(`offset=${encodeURIComponent(limit)}`); // use 'offset' per backend
     const qs = params.length ? `?${params.join('&')}` : '';
     return `${(API_BASE || '').replace(/\/$/, '')}/bids${qs}`;
-  };
+  }, [bidderFilter, bidderTypeFilter, projectTypeFilter, page, limit]);
 
-  const loadBids = async () => {
+
+  const loadBids = useCallback( async () => {
     try {
       setLoadingBids(true);
       setError(null);
@@ -93,26 +94,42 @@ const SuccessBidsPage = () => {
       }
       const bids = Array.isArray(res.data?.data) ? res.data.data : [];
       // read pagination from response if available
-      const pagination = res.data?.pagination || res.data?.meta || null;
+      const pagination = res.data?.pagination || res.data?.meta || res.data?.paging || null;
       if (pagination) {
-        setPage(Number(pagination.page) || page);
-        setLimit(Number(pagination.limit) || limit);
-        setTotalCount(Number(pagination.count) || 0);
+         const respPage = Number(pagination.page) || page;
+
+        const respLimit = Number(pagination.limit || pagination.offset) || limit;
+        // the backend here returns 'count' as number of items in this page and 'is_next' flag
+        const respCountForPage = Number(pagination.count);
+        const respIsNext = !!pagination.is_next;
+        // only update if values changed (avoid resetting user page/limit unexpectedly)
+        setPage(respPage);
+        setLimit(respLimit);
+        setPaginationIsNext(respIsNext);
+
+        // if backend supplies a global total, set it; otherwise keep null
+        const possibleTotal = Number(pagination.total || pagination.total_count || pagination.totalCount);
+        setTotalCount(Number.isFinite(possibleTotal) && possibleTotal > 0 ? possibleTotal : null);
+        // use respCountForPage to determine end range
       } else {
-        // if no pagination provided, set totals conservatively
-        setTotalCount(Array.isArray(bids) ? bids.length : 0);
+        // if no pagination provided, clear paginationIsNext and totalCount to conservative defaults
+        setPaginationIsNext(false);
+        setTotalCount(Array.isArray(bids) ? bids.length : null);
       }
+
       setSavedBids(bids);
     } catch (err) {
       console.error('Failed to load bids:', err);
-      setSavedBids([]);
+     setSavedBids([]);
       setError(err?.message || 'Failed to load bids');
     } finally {
       setLoadingBids(false);
     }
-  };
+  }, [buildBidsUrl, page, limit]);
   const canPrev = page > 1;
-  const canNext = limit && totalCount ? page * limit < totalCount : savedBids.length === limit;
+  // determine ability to go next:
+ // prefer backend-provided paginationIsNext; fallback to heuristic (full page received).
+  const canNext = paginationIsNext || (savedBids.length === limit && !(totalCount !== null && page * limit >= totalCount));
   const goPrev = () => { if (canPrev) setPage((p) => p - 1); };
   const goNext = () => { if (canNext) setPage((p) => p + 1); };
   const changeLimit = (newLimit) => { setLimit(Number(newLimit)); setPage(1); };
@@ -121,8 +138,7 @@ const SuccessBidsPage = () => {
 
   useEffect(() => {
     loadBids();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bidderFilter, bidderTypeFilter, projectTypeFilter]);
+  }, [loadBids]);
 
   const getBidDate = (bid) => {
     try {
@@ -294,9 +310,17 @@ const SuccessBidsPage = () => {
         )}
 
            {/* Pagination controls */}
-        <div className="mt-4 flex items-center justify-between">
+           <div className="mt-4 flex items-center justify-between">
           <div className="text-sm text-gray-600">
-            Showing {(totalCount === 0 && savedBids.length === 0) ? 0 : ((page - 1) * limit) + 1} - {Math.min(page * limit, totalCount || ((page - 1) * limit) + savedBids.length)} of {totalCount || savedBids.length}
+            {(() => {
+              const start = savedBids.length === 0 ? 0 : ((page - 1) * limit) + 1;
+              const end = savedBids.length === 0 ? 0 : ((page - 1) * limit) + savedBids.length;
+              if (totalCount !== null) {
+                return `Showing ${start} - ${end} of ${totalCount}`;
+              }
+              // when totalCount unknown show range and indicate if there's more
+              return `Showing ${start} - ${end}${paginationIsNext ? ' (more available)' : ''}`;
+            })()}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={goPrev} disabled={!canPrev} className={`px-3 py-1 rounded ${canPrev ? 'bg-white border' : 'bg-gray-100 text-gray-400'}`}>Prev</button>

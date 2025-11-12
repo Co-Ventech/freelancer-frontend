@@ -24,6 +24,12 @@ const AdminDashboard = () => {
   const [loadingBids, setLoadingBids] = useState(true);
   const [error, setError] = useState(null);
 
+  // pagination state (added)
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalCount, setTotalCount] = useState(null); // may be null if backend doesn't send global total
+  const [paginationIsNext, setPaginationIsNext] = useState(false);
+
 
   // view mode: 'grid' or 'list'
   const [viewMode, setViewMode] = useState('grid');
@@ -88,6 +94,24 @@ const AdminDashboard = () => {
         throw new Error(msg);
       }
       const bids = res?.data?.data || [];
+
+       const pagination = res.data?.pagination || res.data?.meta || null;
+      if (pagination) {
+        const respPage = Number(pagination.page) || page;
+        const respLimit = Number(pagination.limit || pagination.offset) || limit;
+        const respCount = Number(pagination.count) || (Array.isArray(bids) ? bids.length : 0);
+        const respIsNext = !!pagination.is_next;
+        setPage(respPage);
+        setLimit(respLimit);
+        setPaginationIsNext(respIsNext);
+        // backend does not always send total; accept common keys if present
+        const possibleTotal = Number(pagination.total || pagination.total_count || pagination.totalCount);
+        setTotalCount(Number.isFinite(possibleTotal) && possibleTotal > 0 ? possibleTotal : null);
+      } else {
+        // fallback
+        setPaginationIsNext(Array.isArray(bids) && bids.length === limit);
+        setTotalCount(Array.isArray(bids) ? bids.length : null);
+      }
       setSavedBids(Array.isArray(bids) ? bids : []);
     } catch (err) {
       console.error('Failed to load bids:', err);
@@ -106,6 +130,18 @@ const AdminDashboard = () => {
     loadBids();
   }, [loadBids]);
   
+    // pagination controls
+  const canPrev = page > 1;
+  const canNext = paginationIsNext || (savedBids.length === limit && !(totalCount !== null && page * limit >= totalCount));
+  const goPrev = () => { if (canPrev) setPage((p) => p - 1); };
+  const goNext = () => { if (canNext) setPage((p) => p + 1); };
+  const changeLimit = (newLimit) => { setLimit(Number(newLimit)); setPage(1); };
+  const goToPage = (n) => {
+    const next = Number(n);
+    if (Number.isInteger(next) && next >= 1 && (!totalCount || (next - 1) * limit < totalCount)) {
+      setPage(next);
+    }
+  };
   
   // Add this helper function near the top of your component (after state declarations)
   const badgeClass = {
@@ -141,6 +177,8 @@ const buildBidsUrl = useCallback(() => {
   if (bidderFilter && bidderFilter !== 'ALL') params.push(`bidder_id=${encodeURIComponent(bidderFilter)}`);
   if (bidderTypeFilter && bidderTypeFilter !== 'ALL') params.push(`bidder_type=${encodeURIComponent(bidderTypeFilter)}`);
   if (projectTypeFilter && projectTypeFilter !== 'ALL') params.push(`type=${encodeURIComponent(projectTypeFilter)}`);
+ params.push(`page=${encodeURIComponent(page)}`);
+  params.push(`offset=${encodeURIComponent(limit)}`);
 
   const qs = params.length ? `?${params.join("&")}` : "";
   return `${API_BASE}/bids${qs}`;
@@ -420,6 +458,26 @@ const buildBidsUrl = useCallback(() => {
             </table>
           </div>
         )}
+        {/* Pagination controls */}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            {(() => {
+              const start = savedBids.length === 0 ? 0 : ((page - 1) * limit) + 1;
+              const end = savedBids.length === 0 ? 0 : ((page - 1) * limit) + savedBids.length;
+              if (totalCount !== null) return `Showing ${start} - ${end} of ${totalCount}`;
+              return `Showing ${start} - ${end}${paginationIsNext ? ' (more available)' : ''}`;
+            })()}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={goPrev} disabled={!canPrev} className={`px-3 py-1 rounded ${canPrev ? 'bg-white border' : 'bg-gray-100 text-gray-400'}`}>Prev</button>
+            <span className="text-sm">Page {page}</span>
+            <button onClick={goNext} disabled={!canNext} className={`px-3 py-1 rounded ${canNext ? 'bg-white border' : 'bg-gray-100 text-gray-400'}`}>Next</button>
+            <select value={limit} onChange={(e) => changeLimit(e.target.value)} className="border px-2 py-1 rounded">
+              {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n} / page</option>)}
+            </select>
+          </div>
+        </div>
+
       </div>
     </div>
   );
