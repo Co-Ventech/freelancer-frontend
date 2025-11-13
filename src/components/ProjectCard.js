@@ -86,9 +86,39 @@ const ProjectCard = ({ project, usersMap = null }) => {
     return country ? String(country).trim() : null;
   };
 
+    const getOwnerUserObject = (proj) => {
+    if (!proj) return null;
+    const ownerId = proj.owner_id ?? proj.owner?.id ?? proj.user_id ?? null;
+    const mapCandidates = [
+      usersMap,
+      proj.users,
+      proj._users,
+      proj.users_map,
+      typeof window !== 'undefined' ? window.__SF_USERS : undefined,
+      {}
+    ];
+    let resolvedOwner = null;
+    for (const map of mapCandidates) {
+      if (!map || typeof map !== 'object') continue;
+      resolvedOwner = map[ownerId] || map[String(ownerId)] || map[Number(ownerId)];
+      if (resolvedOwner) break;
+      for (const k of Object.keys(map || {})) {
+        const u = map[k];
+        if (u && (u.id === ownerId || String(u.id) === String(ownerId))) {
+          resolvedOwner = u;
+          break;
+        }
+      }
+      if (resolvedOwner) break;
+    }
+    return resolvedOwner || proj.owner || proj.user || (proj.users && proj.users[Object.keys(proj.users)[0]]) || null;
+  };
+ 
+   const ownerCountry = getOwnerCountry(project);
+  const ownerUser = getOwnerUserObject(project);
+  const ownerUsername = ownerUser?.username || ownerUser?.user_name || ownerUser?.displayName || null;
+  const ownerProfileUrl = ownerUsername ? `https://www.freelancer.com/u/${ownerUsername}` : null;
 
-
-  const ownerCountry = getOwnerCountry(project);
 
 
   // Format currency information
@@ -241,6 +271,7 @@ const ProjectCard = ({ project, usersMap = null }) => {
         <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2 leading-tight">
           {title}
         </h3>
+     
 
         {/* Description */}
         <p className="text-gray-600 text-sm mb-2 leading-relaxed">
@@ -273,11 +304,34 @@ const ProjectCard = ({ project, usersMap = null }) => {
           </div>
         </div>
         {/* Client Country */}
-        <div className="bg-gray-50 p-2 rounded-lg mb-4">
-          <span className="text-gray-500 block text-xs">Client Country</span>
-          <span className="font-medium text-gray-900 text-sm">
-            {ownerCountry || 'N/A'}
-          </span>
+               <div className="bg-gray-50 p-2 rounded-lg mb-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <span className="text-gray-500 block text-xs">Client Country</span>
+              <span className="font-medium text-gray-900 text-sm">{ownerCountry || 'N/A'}</span>
+            </div>
+
+            {/* Username + public_name on the right */}
+            {ownerUsername && (
+              <div className="text-right ml-4">
+                <span className="text-gray-500 block text-xs">Client</span>
+                <a
+                  href={ownerProfileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-blue-600 hover:text-blue-800 block"
+                >
+                  @{ownerUsername}
+                </a>
+                {/* public_name if provided by API */}
+                { (ownerUser?.public_name || ownerUser?.publicName) && (
+                  <span className="text-xs text-gray-500 block">
+                    {ownerUser.public_name ?? ownerUser.publicName}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Currency Information */}

@@ -196,10 +196,10 @@ const SuccessBidsPage = () => {
             <div className="text-sm text-gray-500">Saved Bids</div>
           <div className="text-xl font-semibold">{totalCount ?? savedBids.length}</div>   
           </div>
-          <div className="bg-white p-4 rounded shadow">
+          {/* <div className="bg-white p-4 rounded shadow">
             <div className="text-sm text-gray-500">Unique Bidders</div>
             <div className="text-xl font-semibold">{[...new Set(savedBids.map(b => String(b.bidder_id)))].length}</div>
-          </div>
+          </div> */}
           <div className="bg-white p-4 rounded shadow">
             <div className="text-sm text-gray-500">View Mode</div>
             <div className="text-xl font-semibold">{viewMode}</div>
