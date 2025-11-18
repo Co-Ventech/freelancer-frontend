@@ -18,6 +18,7 @@ const ProposalModal = ({
   url,
   calculateBidAmount,
   initialPeriod = 5,
+  clientPublicName = null,
 }) => {
   const storageKey = useMemo(() => `${PROPOSAL_STORAGE_PREFIX}${projectId}`, [projectId]);
   const [amount, setAmount] = useState(0);
@@ -30,10 +31,12 @@ const ProposalModal = ({
   const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
   const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;
   const displayName = selectedSubUser?.sub_username || selectedSubUser?.name || currentUser || 'DEFAULT';
+  const publicName = selectedSubUser?.public_name || selectedSubUser?.publicName || selectedSubUser?.name || null;
+  const username = selectedSubUser?.sub_username || selectedSubUser?.username || null;
 
   const [isAmountEdited, setIsAmountEdited] = useState(false);
   const [isAiProposalEnabled, setIsAiPropoalEnabled] = useState(false);
- const calculatedAmount = useMemo(() => {
+  const calculatedAmount = useMemo(() => {
     return calculateBidAmount({ type, budget });
   }, [type, budget, calculateBidAmount]);
 
@@ -59,7 +62,7 @@ const ProposalModal = ({
     }
   }, [open, budget, error, calculatedAmount, isAmountEdited, amount]);
 
-   // generate proposal when AI toggle enabled — define fetch inline so effect deps are explicit
+  // generate proposal when AI toggle enabled — define fetch inline so effect deps are explicit
   useEffect(() => {
     if (!open) return;
 
@@ -76,9 +79,14 @@ const ProposalModal = ({
               title: projectTitle,
               description: projectDescription,
               name: displayName,
+              public_name: publicName,     // bidder's public name (existing)
+              username: username,         // bidder username (existing)
+              client_public_name: clientPublicName // NEW: pass client public name so backend can personalize greeting
+
             },
             { signal: ctrl.signal }
           );
+
           if (response?.status === 200) {
             setProposal(response.data.proposal);
           }
@@ -97,7 +105,7 @@ const ProposalModal = ({
       doFetch();
       return () => ctrl.abort();
     } else {
-      const generalProposal = getGeneralProposal(displayName);
+      const generalProposal = getGeneralProposal(displayName, clientPublicName);
       setProposal(generalProposal);
     }
   }, [isAiProposalEnabled, displayName, projectId, projectTitle, projectDescription, open]);

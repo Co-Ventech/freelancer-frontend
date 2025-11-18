@@ -4,12 +4,9 @@ import { useBidding } from '../hooks/useBidding';
 import bidService from '../services/bidService';
 import ProposalModal from './ProposalModal';
 import { useFreelancerAPI } from '../hooks/useFreelancerAPI';
-/**
- * ProjectCard component - renders a single project in a card format
- */
+
 const ProjectCard = ({ project, usersMap = null }) => {
   const { calculateBidAmount, placeBidManual } = useFreelancerAPI();
-  //  const { loading: localLoading, error, success, clearError } = { loading: apiLoading, error: null, success: null, clearError: () => {} };
   const { loading, error, success, clearError } = useBidding();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
@@ -143,6 +140,9 @@ const ProjectCard = ({ project, usersMap = null }) => {
 
   // Get bid count
   const bidCount = bid_stats?.bid_count || 0;
+  const bidAvg = bid_stats?.bid_avg || 0;
+   const bidAvgRounded = (typeof bidAvg === 'number' && !Number.isNaN(bidAvg)) ? Math.round(bidAvg) : null;
+  const bidAvgDisplay = bidAvgRounded !== null ? `${currencySign}${bidAvgRounded}` : null;
 
   const isPaymentVerified = users?.[project.owner_id]?.status?.payment_verified || `N/A`;
 
@@ -198,6 +198,17 @@ const ProjectCard = ({ project, usersMap = null }) => {
   };
 
   const clientReview = getClientReview(project);
+
+   // --- Employer reputation parsing (safe defaults) ---
+  const employerReputation = ownerUser?.employer_reputation || project.employer_reputation || ownerUser?.profile?.employer_reputation || {};
+  const repEntire = employerReputation?.entire_history || {};
+  const rep3 = employerReputation?.last3months || {};
+  const rep12 = employerReputation?.last12months || {};
+
+  const safeNum = (v) => (typeof v === 'number' && !Number.isNaN(v) ? v : 0);
+  const formatPct = (v) => (typeof v === 'number' ? `${(v * 100).toFixed(0)}%` : 'N/A');
+  const formatCount = (v) => (typeof v === 'number' ? v : 0);
+  const formatRating = (v) => (typeof v === 'number' ? v.toFixed(1) : 'N/A');
 
 
 
@@ -311,6 +322,11 @@ const ProjectCard = ({ project, usersMap = null }) => {
               <span className="font-medium text-gray-900 text-sm">{ownerCountry || 'N/A'}</span>
             </div>
 
+      
+      
+      
+      
+      
             {/* Username + public_name on the right */}
             {ownerUsername && (
               <div className="text-right ml-4">
@@ -361,8 +377,79 @@ const ProjectCard = ({ project, usersMap = null }) => {
             {typeof clientReview === 'number' ? `${clientReview.toFixed(1)} / 5` : 'No reviews yet'}
           </span>
         </div>
+               <div className="bg-white p-3 rounded-lg mb-4 border">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-medium">Client History</div>
+            <div className="text-xs text-gray-500">Source: employer_reputation</div>
+          </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            {[
+              { key: 'Entire', data: repEntire },
+              { key: 'Last 3m', data: rep3 },
+              { key: 'Last 12m', data: rep12 },
+            ].map(({ key, data }) => (
+              <div key={key} className="p-2 bg-gray-50 rounded">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-semibold">{key}</div>
+                  <div className="text-sm text-yellow-600 flex items-center gap-1">
+                    {/* star icon */}
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.966a1 1 0 00.95.69h4.173c.969 0 1.371 1.24.588 1.81l-3.378 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.921-.755 1.688-1.54 1.118L10 15.347l-3.351 2.603c-.785.57-1.84-.197-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.653 9.393c-.783-.57-.38-1.81.588-1.81h4.173a1 1 0 00.95-.69L9.05 2.927z" />
+                    </svg>
+                    <span className="font-medium">{formatRating(data?.overall)}</span>
+                  </div>
+                </div>
 
+                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                  <div className="flex items-center gap-2">
+                    {/* reviews icon */}
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8-1.89 0-3.64-.44-5.06-1.2L3 21l1.2-3.94C3.44 15.64 3 13.89 3 12c0-4.97 3.582-9 8-9s8 4.03 8 9z" />
+                    </svg>
+                    <div>
+                      <div className="text-xs">Reviews</div>
+                      <div className="font-medium">{formatCount(data?.reviews ?? data?.all ?? data?.complete)}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* complete icon */}
+                    {/* <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M16.707 5.293a1 1 0 010 1.414L8.414 15 5 11.586a1 1 0 10-1.414 1.414l4 4a1 1 0 001.414 0l9-9a1 1 0 00-1.414-1.414z" />
+                    </svg> */}
+                    <div>
+                      <div className="text-xs">Complete</div>
+                      <div className="font-medium">{formatCount(data?.complete)}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* incomplete icon */}
+                    <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <div>
+                      <div className="text-xs">Incomplete</div>
+                      <div className="font-medium">{formatCount(data?.incomplete)}</div>
+                    </div>
+                  </div>
+
+              
+                    {/* completion rate icon */}
+                    {/* <svg className="w-4 h-4 text-indigo-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11H9v5h2V7z" />
+                    </svg>
+                    <div>
+                      <div className="text-xs">Completion</div>
+                      <div className="font-medium">{(typeof data?.completion_rate === 'number') ? `${(data.completion_rate * 100).toFixed(0)}%` : 'N/A'}</div>
+                    </div> */}
+                  
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Footer */}
@@ -376,11 +463,12 @@ const ProjectCard = ({ project, usersMap = null }) => {
         {/* Stats */}
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-1">
+           <div className="flex items-center space-x-2">
               <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
               </svg>
               <span className="text-gray-600">{bidCount} bids</span>
+              <span className="text-gray-600">{bidAvgDisplay ? `avg ${bidAvgDisplay}` : 'avg N/A'}</span>
             </div>
           </div>
 
@@ -491,6 +579,7 @@ const ProjectCard = ({ project, usersMap = null }) => {
         budget={project.budget}
         type={project.type}
         calculateBidAmount={calculateBidAmount}
+        clientPublicName={ownerUser?.public_name ?? ownerUser?.publicName ?? null}
       />
     </div>
   );
