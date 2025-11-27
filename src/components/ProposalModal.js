@@ -29,6 +29,7 @@ const ProposalModal = ({
   const [error, setError] = useState(null);
   const { currentUser, bidderId } = useAuth();
   const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
+  const subUserTemplate = selectedSubUser?.general_proposal || selectedSubUser?.generalProposal || selectedSubUser?.generalProposalText || null;
   const selectedBidderId = selectedSubUser?.user_bid_id || selectedSubUser?.bidder_id || bidderId;
   const displayName = selectedSubUser?.sub_username || selectedSubUser?.name || currentUser || 'DEFAULT';
   const publicName = selectedSubUser?.public_name || selectedSubUser?.publicName || selectedSubUser?.name || null;
@@ -61,6 +62,21 @@ const ProposalModal = ({
       }
     }
   }, [open, budget, error, calculatedAmount, isAmountEdited, amount]);
+
+const personalizeProposal = (template, clientName) => {
+    if (!template) return null;
+    if (!clientName) return template;
+    // Prefer explicit placeholder replacement if sub-user used it
+    if (/\{\{\s*client(Name)?\s*\}\}/i.test(template)) {
+      return template.replace(/\{\{\s*client(Name)?\s*\}\}/gi, clientName);
+    }
+    // Otherwise, if template already begins with a greeting like "Hey" insert name after Hey
+    if (/^\s*hey[,!\s]/i.test(template)) {
+      return template.replace(/^\s*hey([,!\s]*)/i, `Hey ${clientName}$1`);
+    }
+    // Fallback: prepend a greeting line
+    return `Hey ${clientName},\n\n${template}`;
+  };
 
   // generate proposal when AI toggle enabled — define fetch inline so effect deps are explicit
   useEffect(() => {
@@ -105,8 +121,10 @@ const ProposalModal = ({
       doFetch();
       return () => ctrl.abort();
     } else {
-      const generalProposal = getGeneralProposal(displayName, clientPublicName);
+      const personalized = subUserTemplate ? personalizeProposal(subUserTemplate, clientPublicName) : null;
+      const generalProposal = personalized || getGeneralProposal(displayName, clientPublicName);
       setProposal(generalProposal);
+
     }
   }, [isAiProposalEnabled, displayName, projectId, projectTitle, projectDescription, open]);
 

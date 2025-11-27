@@ -19,6 +19,8 @@ import { useNavigate } from 'react-router-dom';
 import SubUserRegister from './components/SubUserRegister';
 import { useUsersStore } from './store/useUsersStore';
 import UserSwitcher from './components/UserSwitcher';
+import MoreSettings from './components/MoreSettings';
+
 
 
 
@@ -281,6 +283,7 @@ const MainApp = () => {
             Logout
           </button>
         </div>
+        
 
       </header>
 
@@ -409,6 +412,21 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <SubUserRegister parentUid={fbUser?.uid} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/more-settings"
+                    element={
+                      <ProtectedRoute>
+                        <MoreSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/update-profile"
+                    element={
+                      <ProtectedRoute>
                       </ProtectedRoute>
                     }
                   />

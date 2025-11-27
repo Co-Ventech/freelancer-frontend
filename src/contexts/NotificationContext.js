@@ -64,51 +64,63 @@ export const NotificationProvider = ({ children }) => {
   const initialLoadedRef = useRef(false);
   const audioUnlockedRef = useRef(false); // Track if audio is unlocked
 
-  // Create audio element once and unlock on first user interaction
   useEffect(() => {
     try {
       // Audio file placed at public/sounds/notification.mp3
-      audioRef.current = new Audio('/sounds/notification.mp3');
-      audioRef.current.preload = 'auto';
-      audioRef.current.volume = 0.7; // Set volume to 70%
+      const audio = new Audio('/sounds/notification.mp3');
+      audio.crossOrigin = 'anonymous';
+      audio.preload = 'auto';
+      audio.volume = 0.7;
+      // attempt to load
+      try { audio.load(); } catch {}
 
-      // Debug: Check if audio loads successfully
-      audioRef.current.addEventListener('canplaythrough', () => {
-        console.log('✅ Notification sound loaded successfully');
+      audio.addEventListener('canplaythrough', () => {
+        // ready
       });
-
-      audioRef.current.addEventListener('error', (e) => {
-        console.error('❌ Audio file failed to load:', e);
+      audio.addEventListener('error', (e) => {
+        console.error('Notification audio failed to load', e);
       });
+      audioRef.current = audio;
 
-      // Unlock audio on first user interaction (required by browser autoplay policies)
-      const unlockAudio = () => {
-        if (!audioUnlockedRef.current && audioRef.current) {
-          audioRef.current.play()
-            .then(() => {
-              audioRef.current.pause();
-              audioRef.current.currentTime = 0;
-              audioUnlockedRef.current = true;
-              console.log('🔊 Notification audio unlocked - sounds will now play');
-            })
-            .catch((err) => {
-              console.warn('Audio unlock attempt:', err.message);
-            });
+      // try muted-play unlock helper (safer across browsers)
+      const tryUnlockMuted = async () => {
+        if (!audioRef.current) return false;
+        try {
+          const prevMuted = audioRef.current.muted;
+          audioRef.current.muted = true;
+          audioRef.current.currentTime = 0;
+          const p = audioRef.current.play();
+          if (p && typeof p.then === 'function') await p;
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+          audioRef.current.muted = prevMuted;
+          audioUnlockedRef.current = true;
+          return true;
+        } catch (err) {
+          return false;
         }
       };
 
-      // Listen for any user interaction to unlock audio
-      const events = ['click', 'keydown', 'touchstart'];
-      events.forEach(event => {
-        document.addEventListener(event, unlockAudio, { once: true });
-      });
-
-      return () => {
-        // Cleanup event listeners
-        events.forEach(event => {
-          document.removeEventListener(event, unlockAudio);
-        });
+      // unlock on first user interaction (try muted-play then unmuted)
+      const unlockHandler = async () => {
+        if (audioUnlockedRef.current) return;
+        const ok = await tryUnlockMuted();
+        if (!ok && audioRef.current) {
+          try {
+            await audioRef.current.play();
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            audioUnlockedRef.current = true;
+          } catch (e) {
+            // still blocked — leave unlocked flag false
+            console.warn('Notification audio unlock blocked:', e?.message || e);
+          }
+        }
       };
+
+      const events = ['click', 'keydown', 'touchstart'];
+      events.forEach((ev) => document.addEventListener(ev, unlockHandler, { once: true }));
+      return () => events.forEach((ev) => document.removeEventListener(ev, unlockHandler));
     } catch (err) {
       console.warn('Failed to create audio element for notifications', err);
       audioRef.current = null;
@@ -209,59 +221,42 @@ export const NotificationProvider = ({ children }) => {
       });
 
       if (hasBidSuccess && audioRef.current) {
-        try {
-          // If audio hasn't been unlocked by a user interaction, attempt a muted-play unlock.
-          // Many browsers allow play when muted; this often lets future unmuted plays succeed.
-          const audio = audioRef.current;
+         (async () => {
+          try {
+            const audio = audioRef.current;
+            if (!audio) return;
 
-          const tryUnlock = async () => {
-            if (!audio) return false;
-            if (audioUnlockedRef.current) return true;
-            try {
-              // ensure muted to increase chance of play success
-              const prevMuted = audio.muted;
-              audio.muted = true;
-              audio.currentTime = 0;
-              const p = audio.play();
-              if (p && typeof p.then === 'function') {
-                await p;
-              }
-              // pause immediately and restore muted flag
-              audio.pause();
-              audio.currentTime = 0;
-              audio.muted = prevMuted;
-              audioUnlockedRef.current = true;
-              return true;
-            } catch (err) {
-              // unlock failed (likely autoplay block) — will still attempt unmuted play below and catch error
-              console.warn('Audio unlock attempt failed:', err?.message || err);
-              return false;
-            }
-          };
-
-          (async () => {
-            // try unlock if not unlocked yet
+            // if not unlocked, try muted unlock first
             if (!audioUnlockedRef.current) {
-              await tryUnlock();
+              try {
+                const prevMuted = audio.muted;
+                audio.muted = true;
+                audio.currentTime = 0;
+                const p = audio.play();
+                if (p && typeof p.then === 'function') await p;
+                audio.pause();
+                audio.currentTime = 0;
+                audio.muted = prevMuted;
+                audioUnlockedRef.current = true;
+              } catch (e) {
+                // muted unlock failed; continue to try unmuted play below
+              }
             }
 
-            // Now attempt to play the notification sound normally (unmuted)
+            // attempt unmuted play (might still be blocked)
             try {
               audio.currentTime = 0;
-              const playPromise = audio.play();
-              if (playPromise && typeof playPromise.then === 'function') {
-                playPromise.catch((err) => {
-                  // still might be blocked — log and instruct user
-                  console.warn('Notification sound play prevented:', err?.message || err);
-                });
+              const p2 = audio.play();
+              if (p2 && typeof p2.then === 'function') {
+                p2.catch((err) => console.warn('Notification sound play prevented:', err?.message || err));
               }
             } catch (err) {
               console.warn('Error playing notification sound', err);
             }
-          })();
-        } catch (err) {
-          console.warn('Error preparing notification sound', err);
-        }
+          } catch (err) {
+            console.warn('Error preparing notification sound', err);
+          }
+        })();
       }
     }
 
