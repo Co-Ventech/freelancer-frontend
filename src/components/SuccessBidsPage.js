@@ -184,7 +184,7 @@ const SuccessBidsPage = () => {
               <option value="hourly">Hourly</option>
             </select>
             <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="border px-2 py-1 rounded">
-              <option value="ALL">Any time</option>
+              <option value="ALL">All</option>
               <option value="24 hours">Last 24 hours</option>
               <option value="3 days">Last 3 days</option>
               <option value="7 days">Last 7 days</option>

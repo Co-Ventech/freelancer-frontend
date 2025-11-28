@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect,useMemo, useCallback } from 'react';
 import { useFirebaseAuth } from '../contexts/FirebaseAuthContext';
 import { useNavigate } from 'react-router-dom';
 import firebaseAuthService from '../services/firebaseAuth';
 import axios from 'axios';
 import { formatPakistanDate } from '../utils/dateUtils';
-import { getAuthHeaders } from '../utils/api';
+// import { getAuthHeaders } from '../utils/api';
 import { useNotifications } from '../contexts/NotificationContext';
+import { API_BASE, getAuthHeaders } from '../utils/api';
+import { useUsersStore } from '../store/useUsersStore';
 
-const API_BASE = process.env.REACT_APP_API_BASE_URL || '';
+// const API_BASE = process.env.REACT_APP_API_BASE_URL || '';
 
 const AdminDashboard = () => {
   const { user, logout, isAdmin } = useFirebaseAuth();
@@ -38,21 +40,46 @@ const AdminDashboard = () => {
   const [bidderFilter, setBidderFilter] = useState('ALL');
   const [bidderTypeFilter, setBidderTypeFilter] = useState('ALL');
   const [projectTypeFilter, setProjectTypeFilter] = useState('ALL');
+    const [dateFilter, setDateFilter] = useState('ALL'); 
 
-  // fixed user filter list (always shown)
-  const userFilterList = [
-    { id: '8622920', name: 'Zubair' },
-    { id: '85786318', name: 'Co_ventech' },
-    { id: '88454359', name: 'Zameer Ahmed' },
-    { id: '78406347', name: 'Ahsan' },
-  ];
 
-  const userMapping = {
-    8622920: 'Zubair',
-    85786318: 'Co_ventech',
-    88454359: 'Zameer Ahmed',
-    78406347: 'Ahsan',
-  };
+  // dynamic sub-users from store (used for filters / names)
+    const subUsers = useUsersStore((s) => s.users || []);
+  
+    const userFilterList = useMemo(() => {
+      return Array.isArray(subUsers)
+        ? subUsers
+          .map((u) => {
+            const id = String(u.user_bid_id || u.bidder_id || u.user_bid || '');
+            const name = u.sub_username || u.name || `sub_${(u.document_id || '').slice(0, 6)}`;
+            return id ? { id, name } : null;
+          })
+          .filter(Boolean)
+        : [];
+    }, [subUsers]);
+  
+    const userMapping = useMemo(() => {
+      return (Array.isArray(subUsers) ? subUsers : []).reduce((acc, u) => {
+        const id = String(u.user_bid_id || u.bidder_id || u.user_bid || '');
+        if (id) acc[id] = u.sub_username || u.name || acc[id] || `sub_${(u.document_id || '').slice(0, 6) || id}`;
+        return acc;
+      }, {});
+    }, [subUsers]);
+
+  // // fixed user filter list (always shown)
+  // const userFilterList = [
+  //   { id: '8622920', name: 'Zubair' },
+  //   { id: '85786318', name: 'Co_ventech' },
+  //   { id: '88454359', name: 'Zameer Ahmed' },
+  //   { id: '78406347', name: 'Ahsan' },
+  // ];
+
+  // const userMapping = {
+  //   8622920: 'Zubair',
+  //   85786318: 'Co_ventech',
+  //   88454359: 'Zameer Ahmed',
+  //   78406347: 'Ahsan',
+  // };
 
   // load all persisted notifications when admin toggles it
   useEffect(() => {
@@ -69,7 +96,7 @@ const AdminDashboard = () => {
     }
   }, [isAdmin, showAllUsersNotifications, getAllPersistedNotifications]);
 
-
+  
   const loadUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
@@ -82,6 +109,27 @@ const AdminDashboard = () => {
     }
   }, []);
 
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+  
+
+  const buildBidsUrl = useCallback(() => {
+  const params = [];
+  if (bidderFilter && bidderFilter !== 'ALL') params.push(`bidder_id=${encodeURIComponent(bidderFilter)}`);
+  if (bidderTypeFilter && bidderTypeFilter !== 'ALL') params.push(`bidder_type=${encodeURIComponent(bidderTypeFilter)}`);
+  if (projectTypeFilter && projectTypeFilter !== 'ALL') params.push(`type=${encodeURIComponent(projectTypeFilter)}`);
+    if (dateFilter && dateFilter !== 'ALL') params.push(`date_from=${encodeURIComponent(dateFilter)}`);
+ params.push(`page=${encodeURIComponent(page)}`);
+  params.push(`offset=${encodeURIComponent(limit)}`);
+
+  const qs = params.length ? `?${params.join("&")}` : "";
+  return `${API_BASE}/bids${qs}`;
+}, [bidderFilter, bidderTypeFilter, projectTypeFilter,dateFilter]);  // ✅ Add missing dependencies
+
+
+  
+
   const loadBids = useCallback(async () => {
     try {
       setLoadingBids(true);
@@ -93,8 +141,7 @@ const AdminDashboard = () => {
         const msg = res?.data?.message || `Failed to load bids: ${res.status}`;
         throw new Error(msg);
       }
-      const bids = res?.data?.data || [];
-
+     const bids = Array.isArray(res.data?.data) ? res.data.data : [];
        const pagination = res.data?.pagination || res.data?.meta || null;
       if (pagination) {
          const respPage = Number(pagination.page) || page;
@@ -124,9 +171,11 @@ const AdminDashboard = () => {
     } finally {
       setLoadingBids(false);
     }
-  }, [bidderFilter, bidderTypeFilter, projectTypeFilter]);
+  }, [buildBidsUrl, page, limit]);
 
-  useEffect(() => {
+
+
+   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
 
@@ -140,12 +189,6 @@ const AdminDashboard = () => {
   const goPrev = () => { if (canPrev) setPage((p) => p - 1); };
   const goNext = () => { if (canNext) setPage((p) => p + 1); };
   const changeLimit = (newLimit) => { setLimit(Number(newLimit)); setPage(1); };
-  const goToPage = (n) => {
-    const next = Number(n);
-    if (Number.isInteger(next) && next >= 1 && (!totalCount || (next - 1) * limit < totalCount)) {
-      setPage(next);
-    }
-  };
   
   // Add this helper function near the top of your component (after state declarations)
   const badgeClass = {
@@ -174,19 +217,6 @@ const AdminDashboard = () => {
     if (amount >= 50) return badgeClass.budget.high;
     return badgeClass.budget.high;
   };
-
-
-const buildBidsUrl = useCallback(() => {
-  const params = [];
-  if (bidderFilter && bidderFilter !== 'ALL') params.push(`bidder_id=${encodeURIComponent(bidderFilter)}`);
-  if (bidderTypeFilter && bidderTypeFilter !== 'ALL') params.push(`bidder_type=${encodeURIComponent(bidderTypeFilter)}`);
-  if (projectTypeFilter && projectTypeFilter !== 'ALL') params.push(`type=${encodeURIComponent(projectTypeFilter)}`);
- params.push(`page=${encodeURIComponent(page)}`);
-  params.push(`offset=${encodeURIComponent(limit)}`);
-
-  const qs = params.length ? `?${params.join("&")}` : "";
-  return `${API_BASE}/bids${qs}`;
-}, [bidderFilter, bidderTypeFilter, projectTypeFilter]);  // ✅ Add missing dependencies
 
 
 
@@ -295,6 +325,15 @@ const buildBidsUrl = useCallback(() => {
               <option value="ALL">All Project Types</option>
               <option value="fixed">Fixed</option>
               <option value="hourly">Hourly</option>
+            </select>
+
+             {/* Date filter */}
+            <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="border px-2 py-1 rounded">
+              <option value="ALL">Any time</option>
+              <option value="24 hours">Last 24 hours</option>
+              <option value="3 days">Last 3 days</option>
+              <option value="7 days">Last 7 days</option>
+              <option value="14 days">Last 14 days</option>
             </select>
 
             {/* View toggle */}
