@@ -5,6 +5,7 @@ import BidSettingsFilter from './filters/BidSettingsFilter';
 import ClientFilters from './filters/ClientFilters';
 import ProjectBudget from './filters/ProjectBudget';
 import UpdateProfile from './filters/UpdateProfile';
+import BidPriceFilter from './filters/BidPriceFilter';
 
 const FilterContainer = ({ activeTab="update-profile", filters = {} }) => {
   const renderFilter = () => {
@@ -40,9 +41,9 @@ const FilterContainer = ({ activeTab="update-profile", filters = {} }) => {
         );
       case 'update-profile':
         return <UpdateProfile />;
-      case 'bids':
+      case 'bid-price':
         return (
-          <BidSettingsFilter
+          <BidPriceFilter 
             maxBidsPerDay={filters.maxBidsPerDay || ''}
             setMaxBidsPerDay={filters.setMaxBidsPerDay || (() => {})}
           />
