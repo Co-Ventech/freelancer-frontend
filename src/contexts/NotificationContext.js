@@ -279,6 +279,55 @@ export const NotificationProvider = ({ children }) => {
   const addError = useCallback((title, message, projectData = null) => add({ type: 'error', title, message, projectData }), [add]);
   const addInfo = useCallback((title, message, projectData = null) => add({ type: 'info', title, message, projectData }), [add]);
 
+  const playNotificationSoundFor = useCallback(async (incomingItems) => {
+    if (!audioRef.current || !Array.isArray(incomingItems) || incomingItems.length === 0) return;
+    // only play for success-style notifications (adjust criteria as needed)
+    const shouldPlay = incomingItems.some((n) => n && (n.isSuccess || n.type === 'success' || n.category === 'bid_success' || (n.title && /bid/i.test(n.title))));
+    if (!shouldPlay) return;
+
+    const audio = audioRef.current;
+
+    const tryUnlock = async () => {
+      if (audioUnlockedRef.current) return true;
+      try {
+        const prevMuted = audio.muted;
+        audio.muted = true;
+        audio.currentTime = 0;
+        const p = audio.play();
+        if (p && typeof p.then === 'function') await p;
+        audio.pause();
+        audio.currentTime = 0;
+        audio.muted = prevMuted;
+        audioUnlockedRef.current = true;
+        return true;
+      } catch (err) {
+        // unlock failed
+        return false;
+      }
+    };
+
+    try {
+      // Only play after initial load to avoid noise on app start
+      if (!initialLoadedRef.current) return;
+      await tryUnlock();
+      // attempt to play unmuted (best effort)
+      try {
+        audio.currentTime = 0;
+        const p = audio.play();
+        if (p && typeof p.then === 'function') {
+          p.catch((err) => {
+            // swallow autoplay block errors
+            console.warn('Notification audio blocked:', err?.message || err);
+          });
+        }
+      } catch (err) {
+        console.warn('Audio play error', err);
+      }
+    } catch (err) {
+      // ignore
+    }
+  }, []);
+
    // Poll backend every 10s for notifications for the selected sub-user
   useEffect(() => {
     let mounted = true;
@@ -334,7 +383,15 @@ export const NotificationProvider = ({ children }) => {
             const toPrepend = mapped.filter(m => !existing.has(m.id));
             const merged = [...toPrepend, ...prev].slice(0, 200);
             return merged;
-          });
+          });// Play sound for new incoming notifications (best-effort)
+          // Do not play on first initial load (initialLoadedRef guards it)
+          (async () => {
+            try {
+              await playNotificationSoundFor(mapped);
+            } catch (e) {
+              console.warn('playNotificationSoundFor error', e);
+            }
+          })();
         }
       } catch (err) {
         console.warn('Failed to poll notifications:', err);
@@ -349,7 +406,8 @@ export const NotificationProvider = ({ children }) => {
       mounted = false;
       if (intervalId) clearInterval(intervalId);
     };
-  }, [subUserIdForStorage, selectedSubUser, addSuccess, addInfo]);
+  }, [subUserIdForStorage, selectedSubUser, addSuccess, addInfo, playNotificationSoundFor]);
+
 
 
   const markRead = useCallback((id) => {

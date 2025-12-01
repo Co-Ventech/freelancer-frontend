@@ -20,19 +20,18 @@ const NotificationBell = () => {
   const { items, unreadCount, markRead, markAllRead, remove } = useNotifications();
   const { modalState, openModal, closeModal } = useModal();
   const [open, setOpen] = useState(false);
-   const [pendingIds, setPendingIds] = useState(new Set());
- const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
+  const [pendingIds, setPendingIds] = useState(new Set());
+  const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
 
   const grouped = useMemo(() => items, [items]);
- const handleMarkRead = async (notification) => {
+
+  const handleMarkRead = async (notification) => {
     const id = notification.id;
     if (!id) return;
     const subUserId = selectedSubUser?.document_id || selectedSubUser?.sub_user_id || selectedSubUser?.id;
-    // Optimistically add pending flag
     setPendingIds((prev) => new Set(prev).add(id));
     try {
       if (!subUserId) {
-        // fallback: no sub-user available, mark locally
         markRead(id);
         return;
       }
@@ -40,13 +39,11 @@ const NotificationBell = () => {
       if (res && res.status >= 200 && res.status < 300) {
         markRead(id);
       } else {
-        // fallback to local mark and log
         console.warn('mark-read failed', res?.status, res?.data);
         markRead(id);
       }
     } catch (err) {
       console.warn('mark-read error', err);
-      // fallback to local mark
       markRead(id);
     } finally {
       setPendingIds((prev) => {
@@ -56,7 +53,6 @@ const NotificationBell = () => {
       });
     }
   };
-
 
   return (
     <div style={{ position: 'relative' }}>
@@ -71,7 +67,6 @@ const NotificationBell = () => {
         }}
         aria-label="Notifications"
       >
-        {/* bell icon */}
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#495057" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
           <path d="M13.73 21a2 2 0 01-3.46 0"/>
@@ -105,65 +100,76 @@ const NotificationBell = () => {
           boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
           zIndex: 1000,
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid #f1f3f5' }}>
-            <strong style={{ color: '#343a40' }}>Notifications</strong>
-            <button onClick={markAllRead} style={{ border: 'none', background: 'transparent', color: '#0d6efd', cursor: 'pointer' }}>Mark all as read</button>
-          </div>
           {grouped.length === 0 ? (
             <div style={{ padding: 16, color: '#6c757d' }}>No notifications</div>
           ) : (
-            grouped.map((n) => (
-              <div key={n.id} style={{ display: 'flex', gap: 12, padding: 14, borderBottom: '1px solid #f1f3f5', background: n.read ? 'white' : '#f8f9fa' }}>
-                <div style={{
-                  width: 8,
-                  height: 8,
-                  marginTop: 6,
-                  borderRadius: 999,
-                  background: n.type === 'success' ? '#28a745' : n.type === 'error' ? '#dc3545' : '#6c757d',
-                  flex: '0 0 auto'
-                }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontWeight: 600, color: '#343a40' }}>{n.title || (n.type === 'success' ? 'Success' : n.type === 'error' ? 'Error' : 'Info')}</span>
-                    <span style={{ fontSize: 12, color: '#868e96' }}>{formatTime(n.createdAt)}</span>
-                  </div>
-                  <div style={{ color: '#495057', fontSize: 14 }}>{n.message}</div>
-                  <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                    {n.projectData && (
-                      <button 
-                        onClick={() => openModal('projectDetails', n.projectData)} 
-                        style={{ border: '1px solid #dee2e6', background: 'white', color: '#28a745', cursor: 'pointer', padding: '6px 10px', borderRadius: 6 }}
-                      >
-                        View
-                      </button>
-                    )}
-                     {!n.read && (
-                      <button
-                        onClick={() => handleMarkRead(n)}
-                        disabled={pendingIds.has(n.id)}
-                        style={{
-                          border: '1px solid #dee2e6',
-                          background: pendingIds.has(n.id) ? '#f1f3f5' : 'white',
-                          color: pendingIds.has(n.id) ? '#6c757d' : '#0d6efd',
-                          cursor: pendingIds.has(n.id) ? 'default' : 'pointer',
-                          padding: '6px 10px',
-                          borderRadius: 6
-                        }}
-                      >
-                        {pendingIds.has(n.id) ? 'Saving…' : 'Mark as read'}
-                      </button>
-                    )}
-                 
-                    <button onClick={() => remove(n.id)} style={{ border: '1px solid #dee2e6', background: 'white', color: '#dc3545', cursor: 'pointer', padding: '6px 10px', borderRadius: 6 }}>Delete</button>
+            grouped.map((n) => {
+              // Prefer explicit isSuccess/description fields if present in notification payload
+              const isSuccess = typeof n.isSuccess !== 'undefined'
+                ? Boolean(n.isSuccess)
+                : (n.type === 'success');
+
+              const description = n.description || n.message || (n.data && n.data.description) || '';
+              const title = n.title || (typeof n.isSuccess !== 'undefined' ? (isSuccess ? 'Bid Success' : 'Bid Failed') : (n.type === 'success' ? 'Success' : (n.type === 'error' ? 'Error' : 'Info')));
+
+              const accentColor = (typeof n.isSuccess !== 'undefined')
+                ? (isSuccess ? '#28a745' : '#dc3545')
+                : (n.type === 'success' ? '#28a745' : n.type === 'error' ? '#dc3545' : '#6c757d');
+
+              return (
+                <div key={n.id} style={{ display: 'flex', gap: 12, padding: 14, borderBottom: '1px solid #f1f3f5', background: n.read ? 'white' : '#f8f9fa' }}>
+                  <div style={{
+                    width: 8,
+                    height: 8,
+                    marginTop: 6,
+                    borderRadius: 999,
+                    background: accentColor,
+                    flex: '0 0 auto'
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, color: '#343a40' }}>{title}</span>
+                      <span style={{ fontSize: 12, color: '#868e96' }}>{formatTime(n.createdAt)}</span>
+                    </div>
+                    <div style={{ color: '#495057', fontSize: 14 }}>
+                      {/* show API description first if available */}
+                      {description || n.message || 'No additional details'}
+                    </div>
+                    <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                      {n.projectData && (
+                        <button 
+                          onClick={() => openModal('projectDetails', n.projectData)} 
+                          style={{ border: '1px solid #dee2e6', background: 'white', color: '#28a745', cursor: 'pointer', padding: '6px 10px', borderRadius: 6 }}
+                        >
+                          View
+                        </button>
+                      )}
+                      {!n.read && (
+                        <button
+                          onClick={() => handleMarkRead(n)}
+                          disabled={pendingIds.has(n.id)}
+                          style={{
+                            border: '1px solid #dee2e6',
+                            background: pendingIds.has(n.id) ? '#f1f3f5' : 'white',
+                            color: pendingIds.has(n.id) ? '#6c757d' : '#0d6efd',
+                            cursor: pendingIds.has(n.id) ? 'default' : 'pointer',
+                            padding: '6px 10px',
+                            borderRadius: 6
+                          }}
+                        >
+                          {pendingIds.has(n.id) ? 'Saving…' : 'Mark as read'}
+                        </button>
+                      )}
+                      <button onClick={() => remove(n.id)} style={{ border: '1px solid #dee2e6', background: 'white', color: '#dc3545', cursor: 'pointer', padding: '6px 10px', borderRadius: 6 }}>Delete</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
-      
-      {/* Project Details Modal */}
+
       {modalState.isOpen && modalState.type === 'projectDetails' && (
         <ProjectDetailsModal 
           projectData={modalState.data} 
@@ -175,5 +181,3 @@ const NotificationBell = () => {
 };
 
 export default NotificationBell;
-
-
