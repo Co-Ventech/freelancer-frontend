@@ -36,6 +36,18 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
         { key: 'auto-bid', label: 'Auto Bid' },
       ],
     },
+     {
+      key: 'manage-templates',
+      title: 'Manage Templates',
+      items: [
+
+        { key: 'templates-categories', label: 'Template Categories' },
+        { key: 'templates', label: 'Templates' },
+  // { key: 'template-categories', label: 'Template Categories' },       
+        // {key: 'template-settings', label: 'Template Settings' },
+      ],
+    },
+    
   ];
 
   const handleNavigation = (key) => {

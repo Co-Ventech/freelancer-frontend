@@ -6,6 +6,9 @@ import ClientFilters from './filters/ClientFilters';
 import ProjectBudget from './filters/ProjectBudget';
 import UpdateProfile from './filters/UpdateProfile';
 import BidPriceFilter from './filters/BidPriceFilter';
+import CategoriesTable from './templates/CategoriesTable';
+import TemplateModal from './templates/TemplateModal';
+import TemplatesTable from './templates/TemplatesTable';
 
 const FilterContainer = ({ activeTab="update-profile", filters = {} }) => {
   const renderFilter = () => {
@@ -48,6 +51,39 @@ const FilterContainer = ({ activeTab="update-profile", filters = {} }) => {
             setMaxBidsPerDay={filters.setMaxBidsPerDay || (() => {})}
           />
         );
+        case 'templates-categories':
+        return (
+          <div>
+             <CategoriesTable 
+            CategoriesTable={filters.CategoriesTable}
+            subUserId={filters.setClientFilters || null}
+            />
+          </div>
+
+        );
+      case 'templates':
+        return (
+          <div>
+            <TemplatesTable 
+              TemplatesTable={filters.TemplatesTable}
+              subUserId={filters.setClientFilters || null}  
+            />
+          </div>
+        );
+        
+
+      // case 'template-categories':
+      //   return (
+      //     <div>
+            
+      //       <TemplateModal 
+      //         TemplateModal={filters.TemplateModal}
+      //         subUserId={filters.setClientFilters || null}
+      //       />
+      //     </div>
+      //   );
+      // case 'template-settings':
+
       default:
         return <div className="text-gray-500">Select a valid filter from the sidebar.</div>;
     }

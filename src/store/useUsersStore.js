@@ -1,10 +1,27 @@
 import { create } from 'zustand';
+import { v4 as uuidv4 } from 'uuid';
 import { getSubUsers, updateSubUser as apiUpdateSubUser } from '../utils/api';
 
-/* lightweight shallow compare for objects */
-const shallowEqual = (a, b) => {
+const DEFAULT_TEMPLATE_CATEGORIES = [
+  { name: 'Greetings', alwaysInclude: true },
+  { name: 'Introduction', alwaysInclude: true },
+  { name: 'Skills', alwaysInclude: true },
+  { name: 'Portfolio', alwaysInclude: true },
+  { name: 'Closing line', alwaysInclude: true },
+  { name: 'Signature', alwaysInclude: true },
+];
+
+const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+const mergeNestedMaps = (existing = {}, ...sources) => {
+  const out = { ...(existing || {}) };
+  for (const s of sources) {
+    if (!isPlainObject(s)) continue;
+    Object.keys(s).forEach((k) => { out[k] = s[k]; });
+  }
+  return out;
+};
+const shallowEqual = (a = {}, b = {}) => {
   if (a === b) return true;
-  if (!a || !b) return false;
   const aKeys = Object.keys(a);
   const bKeys = Object.keys(b);
   if (aKeys.length !== bKeys.length) return false;
@@ -13,8 +30,6 @@ const shallowEqual = (a, b) => {
   }
   return true;
 };
-
-/* compare user arrays shallowly (order assumed stable) */
 const usersShallowEqual = (arrA = [], arrB = []) => {
   if (arrA === arrB) return true;
   if (!Array.isArray(arrA) || !Array.isArray(arrB)) return false;
@@ -28,17 +43,22 @@ const usersShallowEqual = (arrA = [], arrB = []) => {
   return true;
 };
 
-/* helper to detect plain object (not arrays) */
-const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
 
-/* merge multiple plain-object sources into a new shallow object */
-const mergeNestedMaps = (existing = {}, ...sources) => {
-  const out = { ...(existing || {}) };
-  for (const s of sources) {
-    if (!isPlainObject(s)) continue;
-    Object.keys(s).forEach((k) => { out[k] = s[k]; });
-  }
-  return out;
+const findUserIndexById = (users = [], subUserIdOrKey) => {
+  if (!Array.isArray(users) || typeof subUserIdOrKey === 'undefined' || subUserIdOrKey === null) return -1;
+  const sid = String(subUserIdOrKey);
+  return users.findIndex((u) => {
+    const idCandidates = [
+      u.document_id, u.documentId, u.sub_user_id, u.subUserId, u.id, u._id,
+      u.sub_username, u.subUsername, u.username, u.email,
+    ];
+    return idCandidates.some((c) => typeof c !== 'undefined' && c !== null && String(c) === sid);
+  });
+};
+
+// resolve canonical id to use with API: prefer document_id, then sub_user_id, then id
+const resolveCanonicalUserId = (user = {}) => {
+  return user.document_id || user.sub_user_id || user.id || null;
 };
 
 export const useUsersStore = create((set, get) => {
@@ -53,26 +73,23 @@ export const useUsersStore = create((set, get) => {
     loading: false,
     error: null,
 
+    // ...existing fetchUsers / updateSubUser implementation...
     fetchUsers: async (parentUid, idToken = null) => {
-      const prevLoading = get().loading;
-      if (!prevLoading) set({ loading: true, error: null });
-
+      if (!parentUid) throw new Error('parentUid is required to fetch sub-users');
+      set({ loading: true, error: null });
       try {
-        if (!parentUid) throw new Error('parentUid is required to fetch sub-users');
-        if (get().parentUid !== parentUid) set({ parentUid });
-
         const res = await getSubUsers(parentUid, idToken);
         if (!(res.status >= 200 && res.status < 300)) {
           const msg = res?.data?.message || `Failed to fetch sub-users: ${res.status}`;
           set({ error: msg, loading: false });
           throw new Error(msg);
         }
-
         const data = res?.data?.data || res?.data || [];
         const users = Array.isArray(data) ? data : [];
 
         const currentSelected = get().selectedKey;
-        const selectedKey = currentSelected || (users[0] ? (users[0].sub_username || String(users[0].id)) : null);
+        const defaultSelected = users[0] ? (users[0].sub_username || users[0].sub_user_id || String(users[0].id)) : null;
+        const selectedKey = currentSelected || defaultSelected;
 
         const prevState = get();
         const shouldUpdateUsers = !usersShallowEqual(prevState.users, users);
@@ -84,7 +101,6 @@ export const useUsersStore = create((set, get) => {
         nextState.loading = false;
         nextState.error = null;
 
-        // set only if changes
         if (Object.keys(nextState).length > 1 || shouldUpdateUsers || shouldUpdateSelected) {
           set(nextState);
         } else {
@@ -103,54 +119,44 @@ export const useUsersStore = create((set, get) => {
       // resolve id
       let subUserId = subUserIdOrObj;
       if (typeof subUserIdOrObj === 'object' && subUserIdOrObj !== null) {
-        subUserId = subUserIdOrObj.document_id || subUserIdOrObj.sub_user_id || subUserIdOrObj.id;
+        subUserId = resolveCanonicalUserId(subUserIdOrObj);
       }
       if (!subUserId) throw new Error('subUserId required');
 
-      // set loading flag once
       const wasLoading = get().loading;
       if (!wasLoading) set({ loading: true, error: null });
 
-      // OPTIMISTIC: merge nested plain-object fields (e.g., project_filters, client_filters, etc.)
+      // optimistic update: merge nested plain objects
       const prevUsers = get().users || [];
       const optimisticUsers = prevUsers.map((u) => {
-        const id = String(u.document_id || u.sub_user_id || u.id);
-        if (id !== String(subUserId)) return u;
+        const id = resolveCanonicalUserId(u);
+        if (!id || String(id) !== String(subUserId)) return u;
 
-        // shallow merge top-level, but for any plain-object fields in payload, merge them with existing
         let merged = { ...u, ...payload };
-
         Object.keys(payload || {}).forEach((key) => {
           const incoming = payload[key];
           const existing = u[key];
           if (isPlainObject(incoming) && isPlainObject(existing)) {
             merged = { ...merged, [key]: mergeNestedMaps(existing, incoming) };
-          } else {
-            // arrays or primitives - just set incoming (already handled by ...payload)
           }
         });
-
         return merged;
       });
 
-      if (!usersShallowEqual(prevUsers, optimisticUsers)) {
-        set({ users: optimisticUsers });
-      }
+      if (!usersShallowEqual(prevUsers, optimisticUsers)) set({ users: optimisticUsers });
 
       try {
         const res = await apiUpdateSubUser(subUserId, payload, idToken);
         const serverData = res?.data?.data || res?.data || null;
 
-        // merge server response with current users and set only if changed
+        // reconcile with store
         const currentUsers = get().users || [];
         const mergedUsers = currentUsers.map((u) => {
-          const id = String(u.document_id || u.sub_user_id || u.id);
-          if (id !== String(subUserId)) return u;
+          const id = resolveCanonicalUserId(u);
+          if (!id || String(id) !== String(subUserId)) return u;
 
-          // start with current user, then apply serverData and payload; merge plain-object nested fields
           let merged = { ...u, ...(serverData || {}), ...payload };
 
-          // collect keys that may be plain objects from serverData or payload or existing user
           const candidateKeys = new Set([
             ...Object.keys(u || {}),
             ...Object.keys(payload || {}),
@@ -161,8 +167,6 @@ export const useUsersStore = create((set, get) => {
             const existingVal = u[key];
             const payloadVal = payload ? payload[key] : undefined;
             const serverVal = serverData ? serverData[key] : undefined;
-
-            // if any of these is a plain object, do a shallow merge: existing <- payload <- server
             if (isPlainObject(existingVal) || isPlainObject(payloadVal) || isPlainObject(serverVal)) {
               merged = {
                 ...merged,
@@ -186,7 +190,7 @@ export const useUsersStore = create((set, get) => {
 
         return serverData;
       } catch (err) {
-        // on error, revert by re-fetching if possible (safe)
+        // revert by re-fetching users if possible
         const parentUid = get().parentUid || null;
         if (parentUid) {
           try { await get().fetchUsers(parentUid); } catch (_) { /* ignore */ }
@@ -194,6 +198,264 @@ export const useUsersStore = create((set, get) => {
         set({ error: err?.message || String(err), loading: false });
         throw err;
       }
+    },
+
+    /* TEMPLATE CATEGORIES */
+    loadTemplateCategories: async (subUserIdOrKey) => {
+      if (!subUserIdOrKey) return [];
+      const users = get().users || [];
+      let idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1 && get().selectedKey) idx = findUserIndexById(users, get().selectedKey);
+
+      let categories = [];
+      if (idx !== -1) categories = Array.isArray(users[idx].template_categories) ? [...users[idx].template_categories] : [];
+
+      if (!Array.isArray(categories) || categories.length === 0) {
+        const seeded = DEFAULT_TEMPLATE_CATEGORIES.map((c, i) => ({
+          id: uuidv4(),
+          name: c.name,
+          alwaysInclude: !!c.alwaysInclude,
+          order: i,
+        }));
+        const userObj = idx !== -1 ? users[idx] : null;
+        const canonicalId = userObj ? resolveCanonicalUserId(userObj) : null;
+
+        if (canonicalId) {
+          try {
+            await apiUpdateSubUser(canonicalId, { template_categories: seeded });
+            const nextUsers = [...users];
+            nextUsers[idx] = { ...nextUsers[idx], template_categories: seeded };
+            set({ users: nextUsers });
+            return seeded;
+          } catch (err) {
+            console.error('Failed to persist seeded template categories', err);
+            return seeded;
+          }
+        }
+        return seeded;
+      }
+
+      const normalized = [...categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((c, i) => ({ ...c, order: i, id: c.id || uuidv4() }));
+      if (idx !== -1 && JSON.stringify(normalized) !== JSON.stringify(categories)) {
+        try {
+          const canonicalId = resolveCanonicalUserId(users[idx]);
+          if (canonicalId) {
+            await apiUpdateSubUser(canonicalId, { template_categories: normalized });
+            const nextUsers = [...users];
+            nextUsers[idx] = { ...nextUsers[idx], template_categories: normalized };
+            set({ users: nextUsers });
+          }
+        } catch (err) { /* ignore */ }
+      }
+      return normalized;
+    },
+
+    addTemplateCategory: async (subUserIdOrKey, payload) => {
+      if (!subUserIdOrKey || !payload) throw new Error('subUserId & payload required');
+      const users = get().users || [];
+      const idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1) throw new Error('Sub-user not found in store');
+
+      const existing = Array.isArray(users[idx].template_categories) ? [...users[idx].template_categories] : [];
+      const newCat = { id: uuidv4(), name: String(payload.name || 'Untitled'), alwaysInclude: !!payload.alwaysInclude, order: existing.length };
+      const next = [...existing, newCat];
+
+      const canonicalId = resolveCanonicalUserId(users[idx]);
+      if (!canonicalId) throw new Error('Cannot resolve canonical sub-user id to persist');
+
+      await apiUpdateSubUser(canonicalId, { template_categories: next });
+      const nextUsers = [...users];
+      nextUsers[idx] = { ...nextUsers[idx], template_categories: next };
+      set({ users: nextUsers });
+      return newCat;
+    },
+
+    updateTemplateCategory: async (subUserIdOrKey, categoryId, patch) => {
+      if (!subUserIdOrKey || !categoryId) throw new Error('subUserId & categoryId required');
+      const users = get().users || [];
+      const idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1) throw new Error('Sub-user not found in store');
+
+      const existing = Array.isArray(users[idx].template_categories) ? [...users[idx].template_categories] : [];
+      const next = existing.map((c) => (c.id === categoryId ? { ...c, ...patch } : c));
+
+      const canonicalId = resolveCanonicalUserId(users[idx]);
+      if (!canonicalId) throw new Error('Cannot resolve canonical sub-user id to persist');
+
+      await apiUpdateSubUser(canonicalId, { template_categories: next });
+      const nextUsers = [...users];
+      nextUsers[idx] = { ...nextUsers[idx], template_categories: next };
+      set({ users: nextUsers });
+      return next.find((c) => c.id === categoryId);
+    },
+
+    deleteTemplateCategory: async (subUserIdOrKey, categoryId) => {
+      if (!subUserIdOrKey || !categoryId) throw new Error('subUserId & categoryId required');
+      const users = get().users || [];
+      const idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1) throw new Error('Sub-user not found in store');
+
+      const existing = Array.isArray(users[idx].template_categories) ? [...users[idx].template_categories] : [];
+      const next = existing.filter((c) => c.id !== categoryId).map((c, i) => ({ ...c, order: i }));
+
+      const canonicalId = resolveCanonicalUserId(users[idx]);
+      if (!canonicalId) throw new Error('Cannot resolve canonical sub-user id to persist');
+
+      await apiUpdateSubUser(canonicalId, { template_categories: next });
+      const nextUsers = [...users];
+      nextUsers[idx] = { ...nextUsers[idx], template_categories: next };
+      set({ users: nextUsers });
+      return true;
+    },
+
+    moveCategoryUp: async (subUserIdOrKey, categoryId) => {
+      if (!subUserIdOrKey || !categoryId) return false;
+      const users = get().users || [];
+      const idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1) return false;
+
+      const existing = Array.isArray(users[idx].template_categories) ? [...users[idx].template_categories].sort((a,b) => (a.order||0)-(b.order||0)) : [];
+      const i = existing.findIndex((c) => c.id === categoryId);
+      if (i <= 0) return false;
+
+      const next = [...existing];
+      [next[i-1], next[i]] = [next[i], next[i-1]];
+      const reindexed = next.map((c, j) => ({ ...c, order: j }));
+
+      const canonicalId = resolveCanonicalUserId(users[idx]);
+      if (!canonicalId) return false;
+      await apiUpdateSubUser(canonicalId, { template_categories: reindexed });
+
+      const nextUsers = [...users];
+      nextUsers[idx] = { ...nextUsers[idx], template_categories: reindexed };
+      set({ users: nextUsers });
+      return true;
+    },
+
+    moveCategoryDown: async (subUserIdOrKey, categoryId) => {
+      if (!subUserIdOrKey || !categoryId) return false;
+      const users = get().users || [];
+      const idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1) return false;
+
+      const existing = Array.isArray(users[idx].template_categories) ? [...users[idx].template_categories].sort((a,b) => (a.order||0)-(b.order||0)) : [];
+      const i = existing.findIndex((c) => c.id === categoryId);
+      if (i === -1 || i >= existing.length - 1) return false;
+
+      const next = [...existing];
+      [next[i], next[i+1]] = [next[i+1], next[i]];
+      const reindexed = next.map((c, j) => ({ ...c, order: j }));
+
+      const canonicalId = resolveCanonicalUserId(users[idx]);
+      if (!canonicalId) return false;
+      await apiUpdateSubUser(canonicalId, { template_categories: reindexed });
+
+      const nextUsers = [...users];
+      nextUsers[idx] = { ...nextUsers[idx], template_categories: reindexed };
+      set({ users: nextUsers });
+      return true;
+    },
+
+    /* TEMPLATES: add/load/update/delete/duplicate for per-sub-user templates */
+    loadTemplates: async (subUserIdOrKey) => {
+      if (!subUserIdOrKey) return [];
+      const users = get().users || [];
+      const idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1) return [];
+      const templates = Array.isArray(users[idx].templates) ? [...users[idx].templates] : [];
+      const normalized = templates.map((t, i) => ({ ...t, id: t.id || uuidv4(), order: typeof t.order === 'number' ? t.order : i }));
+      if (JSON.stringify(normalized) !== JSON.stringify(templates)) {
+        try {
+          const canonicalId = resolveCanonicalUserId(users[idx]);
+          if (canonicalId) {
+            await apiUpdateSubUser(canonicalId, { templates: normalized });
+            const nextUsers = [...users];
+            nextUsers[idx] = { ...nextUsers[idx], templates: normalized };
+            set({ users: nextUsers });
+          }
+        } catch (err) { /* ignore */ }
+      }
+      return normalized.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    },
+
+    addTemplate: async (subUserIdOrKey, payload) => {
+      if (!subUserIdOrKey || !payload) throw new Error('subUserId & payload required');
+      const users = get().users || [];
+      const idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1) throw new Error('Sub-user not found in store');
+
+      const existing = Array.isArray(users[idx].templates) ? [...users[idx].templates] : [];
+      const newTpl = {
+        id: uuidv4(),
+        categoryId: payload.categoryId || payload.category_id || null,
+        categoryName: payload.categoryName || payload.category_name || payload.category || '',
+        content: payload.content || '',
+        skills: payload.skills || 'All skills',
+        createdAt: Date.now(),
+        order: existing.length,
+      };
+      const next = [...existing, newTpl];
+      const canonicalId = resolveCanonicalUserId(users[idx]);
+      if (!canonicalId) throw new Error('Cannot resolve canonical sub-user id to persist');
+      await apiUpdateSubUser(canonicalId, { templates: next });
+      const nextUsers = [...users];
+      nextUsers[idx] = { ...nextUsers[idx], templates: next };
+      set({ users: nextUsers });
+      return newTpl;
+    },
+
+    updateTemplate: async (subUserIdOrKey, templateId, patch) => {
+      if (!subUserIdOrKey || !templateId) throw new Error('subUserId & templateId required');
+      const users = get().users || [];
+      const idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1) throw new Error('Sub-user not found in store');
+
+      const existing = Array.isArray(users[idx].templates) ? [...users[idx].templates] : [];
+      const next = existing.map((t) => (t.id === templateId ? { ...t, ...patch } : t));
+      const canonicalId = resolveCanonicalUserId(users[idx]);
+      if (!canonicalId) throw new Error('Cannot resolve canonical sub-user id to persist');
+      await apiUpdateSubUser(canonicalId, { templates: next });
+      const nextUsers = [...users];
+      nextUsers[idx] = { ...nextUsers[idx], templates: next };
+      set({ users: nextUsers });
+      return next.find((t) => t.id === templateId);
+    },
+
+    deleteTemplate: async (subUserIdOrKey, templateId) => {
+      if (!subUserIdOrKey || !templateId) throw new Error('subUserId & templateId required');
+      const users = get().users || [];
+      const idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1) throw new Error('Sub-user not found in store');
+
+      const existing = Array.isArray(users[idx].templates) ? [...users[idx].templates] : [];
+      const next = existing.filter((t) => t.id !== templateId).map((t, i) => ({ ...t, order: i }));
+      const canonicalId = resolveCanonicalUserId(users[idx]);
+      if (!canonicalId) throw new Error('Cannot resolve canonical sub-user id to persist');
+      await apiUpdateSubUser(canonicalId, { templates: next });
+      const nextUsers = [...users];
+      nextUsers[idx] = { ...nextUsers[idx], templates: next };
+      set({ users: nextUsers });
+      return true;
+    },
+
+    duplicateTemplate: async (subUserIdOrKey, templateId) => {
+      if (!subUserIdOrKey || !templateId) throw new Error('subUserId & templateId required');
+      const users = get().users || [];
+      const idx = findUserIndexById(users, subUserIdOrKey);
+      if (idx === -1) throw new Error('Sub-user not found in store');
+
+      const existing = Array.isArray(users[idx].templates) ? [...users[idx].templates] : [];
+      const tpl = existing.find((t) => t.id === templateId);
+      if (!tpl) throw new Error('Template not found');
+      const copy = { ...tpl, id: uuidv4(), content: `${tpl.content} (copy)`, createdAt: Date.now(), order: existing.length };
+      const next = [...existing, copy];
+      const canonicalId = resolveCanonicalUserId(users[idx]);
+      if (!canonicalId) throw new Error('Cannot resolve canonical sub-user id to persist');
+      await apiUpdateSubUser(canonicalId, { templates: next });
+      const nextUsers = [...users];
+      nextUsers[idx] = { ...nextUsers[idx], templates: next };
+      set({ users: nextUsers });
+      return copy;
     },
 
     selectUser: (key) => {
@@ -206,7 +468,8 @@ export const useUsersStore = create((set, get) => {
     getSelectedUser: () => {
       const { users, selectedKey } = get();
       if (!selectedKey) return null;
-      return users.find(u => (u.sub_username || String(u.id)) === selectedKey) || null;
-    }
+      const idx = findUserIndexById(users, selectedKey);
+      return idx === -1 ? null : users[idx];
+    },
   };
 });
