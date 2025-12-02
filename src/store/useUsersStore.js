@@ -72,8 +72,9 @@ export const useUsersStore = create((set, get) => {
     parentUid: null,
     loading: false,
     error: null,
+    /* SUB-USERS */
+    
 
-    // ...existing fetchUsers / updateSubUser implementation...
     fetchUsers: async (parentUid, idToken = null) => {
       if (!parentUid) throw new Error('parentUid is required to fetch sub-users');
       set({ loading: true, error: null });
@@ -214,7 +215,7 @@ export const useUsersStore = create((set, get) => {
         const seeded = DEFAULT_TEMPLATE_CATEGORIES.map((c, i) => ({
           id: uuidv4(),
           name: c.name,
-          alwaysInclude: !!c.alwaysInclude,
+          alwaysInclude: c.alwaysInclude,
           order: i,
         }));
         const userObj = idx !== -1 ? users[idx] : null;
@@ -358,12 +359,27 @@ export const useUsersStore = create((set, get) => {
 
     /* TEMPLATES: add/load/update/delete/duplicate for per-sub-user templates */
     loadTemplates: async (subUserIdOrKey) => {
-      if (!subUserIdOrKey) return [];
+     if (!subUserIdOrKey) return [];
       const users = get().users || [];
       const idx = findUserIndexById(users, subUserIdOrKey);
       if (idx === -1) return [];
       const templates = Array.isArray(users[idx].templates) ? [...users[idx].templates] : [];
-      const normalized = templates.map((t, i) => ({ ...t, id: t.id || uuidv4(), order: typeof t.order === 'number' ? t.order : i }));
+      const categories = Array.isArray(users[idx].template_categories) ? users[idx].template_categories : [];
+      // Normalize and ensure each template carries categoryAlwaysInclude
+      const normalized = templates.map((t, i) => {
+        const id = t.id || uuidv4();
+        const order = typeof t.order === 'number' ? t.order : i;
+        // try find category by id first then by name
+        const catId = t.categoryId || t.category_id || null;
+        let cat = null;
+        if (catId) cat = categories.find((c) => String(c.id) === String(catId));
+        if (!cat && (t.categoryName || t.category_name || t.category)) {
+          const name = String(t.categoryName || t.category_name || t.category).toLowerCase();
+          cat = categories.find((c) => String(c.name || '').toLowerCase() === name);
+        }
+        const alwaysInclude = !!(cat && (cat.alwaysInclude || cat.always_include));
+        return { ...t, id, order, alwaysInclude };
+      });
       if (JSON.stringify(normalized) !== JSON.stringify(templates)) {
         try {
           const canonicalId = resolveCanonicalUserId(users[idx]);
@@ -376,7 +392,7 @@ export const useUsersStore = create((set, get) => {
         } catch (err) { /* ignore */ }
       }
       return normalized.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    },
+     },
 
     addTemplate: async (subUserIdOrKey, payload) => {
       if (!subUserIdOrKey || !payload) throw new Error('subUserId & payload required');
@@ -385,6 +401,18 @@ export const useUsersStore = create((set, get) => {
       if (idx === -1) throw new Error('Sub-user not found in store');
 
       const existing = Array.isArray(users[idx].templates) ? [...users[idx].templates] : [];
+      const categories = Array.isArray(users[idx].template_categories) ? users[idx].template_categories : [];
+      // determine alwaysInclude from selected category
+      let alwaysInclude = false;
+      if (payload.categoryId) {
+        const c = categories.find((x) => String(x.id) === String(payload.categoryId));
+        if (c) alwaysInclude = !!(c.alwaysInclude || c.always_include);
+      } else if (payload.categoryName) {
+        const name = String(payload.categoryName).toLowerCase();
+        const c = categories.find((x) => String(x.name || '').toLowerCase() === name);
+        if (c) alwaysInclude = !!(c.alwaysInclude || c.always_include);
+      }
+
       const newTpl = {
         id: uuidv4(),
         categoryId: payload.categoryId || payload.category_id || null,
@@ -393,6 +421,7 @@ export const useUsersStore = create((set, get) => {
         skills: payload.skills || 'All skills',
         createdAt: Date.now(),
         order: existing.length,
+        alwaysInclude,
       };
       const next = [...existing, newTpl];
       const canonicalId = resolveCanonicalUserId(users[idx]);
@@ -402,7 +431,7 @@ export const useUsersStore = create((set, get) => {
       nextUsers[idx] = { ...nextUsers[idx], templates: next };
       set({ users: nextUsers });
       return newTpl;
-    },
+     },
 
     updateTemplate: async (subUserIdOrKey, templateId, patch) => {
       if (!subUserIdOrKey || !templateId) throw new Error('subUserId & templateId required');

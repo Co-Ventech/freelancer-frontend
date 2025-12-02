@@ -5,6 +5,8 @@ import TemplateModal from './TemplateModal';
 const TemplatesTable = () => {
   const users = useUsersStore((s) => s.users);
   const selectedKey = useUsersStore((s) => s.selectedKey);
+   const selectedUser = useUsersStore((s) => s.getSelectedUser());
+  const skills = selectedUser?.skills || [];
   const loadTemplates = useUsersStore((s) => s.loadTemplates);
   const loadTemplateCategories = useUsersStore((s) => s.loadTemplateCategories);
   const addTemplate = useUsersStore((s) => s.addTemplate);
@@ -340,6 +342,24 @@ const TemplatesTable = () => {
           </button>
         </div>
       </div>
+       {/* Skill Stats */}
+      {selectedUser && Array.isArray(skills) && skills.length > 0 && (
+        <section className="mt-8 bg-white rounded shadow p-6">
+          <h2 className="text-lg font-semibold mb-4">Skill Stats</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+            {skills.map((skill) => (
+              <div
+                key={skill.id ?? skill.name}
+                className="border rounded-lg px-4 py-3 shadow-sm bg-white flex flex-col justify-between"
+              >
+                <div className="text-sm font-semibold text-blue-700">
+                  {skill.name}
+                </div>
+              </div>
+            ))}
+          </div>  
+        </section>
+      )}
 
       {/* Modal */}
       {modalOpen && (
