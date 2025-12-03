@@ -1,9 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const TemplateModal = ({ isOpen, categories = [], template, onClose, onSave, isLoading = false }) => {
   const [categoryId, setCategoryId] = useState('');
   const [content, setContent] = useState('');
   const [errors, setErrors] = useState({});
+  const textareaRef = useRef(null);
+
+  // Wildcards available for users
+  const WILDCARDS = [
+    { token: '{{client_name}}', label: 'Client name' },
+    { token: '{{bidder_name}}', label: 'Your name' },
+    { token: '{{skills}}', label: 'Skills' },
+    { token: '{{job_title}}', label: 'Job title' },
+    { token: '{{budget}}', label: 'Budget' },
+  ];
 
   // ============ Initialize Form on Template Change ============
   useEffect(() => {
@@ -36,6 +46,50 @@ const TemplateModal = ({ isOpen, categories = [], template, onClose, onSave, isL
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  // Insert wildcard at current caret position in textarea
+  const insertWildcard = (token) => {
+    const el = textareaRef.current;
+    if (!el) {
+      setContent((prev) => (prev ? prev + token : token));
+      return;
+    }
+    const start = el.selectionStart ?? content.length;
+    const end = el.selectionEnd ?? content.length;
+    const before = content.slice(0, start);
+    const after = content.slice(end);
+    const next = `${before}${token}${after}`;
+    setContent(next);
+    // restore focus and caret after the inserted token
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + token.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  // Copy token to clipboard
+  const copyWildcard = async (token) => {
+    if (!navigator?.clipboard) {
+      // fallback
+      try {
+        const tmp = document.createElement('textarea');
+        tmp.value = token;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(token);
+    } catch {
+      // ignore
+    }
   };
 
   // ============ Handle Submit ============
@@ -123,23 +177,63 @@ const TemplateModal = ({ isOpen, categories = [], template, onClose, onSave, isL
             )}
           </div>
 
+          {/* Wildcards helper */}
+          <div className="mb-3">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">Available variables</label>
+              <p className="text-xs text-gray-400">Click to insert</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {WILDCARDS.map((w) => (
+                <div key={w.token} className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => insertWildcard(w.token)}
+                    className="text-xs bg-gray-100 hover:bg-gray-200 border rounded px-2 py-1 text-gray-800"
+                    title={`Insert ${w.token}`}
+                    disabled={isLoading}
+                  >
+                    {w.token}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => copyWildcard(w.token)}
+                    className="text-xs bg-white border rounded px-2 py-1 text-gray-500 hover:text-gray-700"
+                    title={`Copy ${w.token}`}
+                    disabled={isLoading}
+                  >
+                    Copy
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Use these variables inside your template content. Example: Hi<span className="font-mono bg-gray-50 px-1 rounded">{'{client_name}'}</span>
+            </p>
+          </div>
+
           {/* Content Field */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Template Content <span className="text-red-500">*</span>
             </label>
             <textarea
+              ref={textareaRef}
               value={content}
               onChange={(e) => {
                 setContent(e.target.value);
                 setErrors({ ...errors, content: '' });
               }}
-              placeholder="Enter your proposal template text here...
+              placeholder={
+`Enter your proposal template text here...
 
 You can use variables like:
-[Owner Full Name] - Client name
-[Job Skills] - Required skills
-[Budget] - Project budget"
+{{client_name}} - Client name
+{{bidder_name}} - Your name
+{{skills}} - Job skills
+{{job_title}} - Job title
+{{budget}} - Project budget`
+              }
               className={`w-full border rounded px-3 py-2 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical ${
                 errors.content ? 'border-red-500' : 'border-gray-300'
               }`}
