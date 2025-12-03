@@ -66,6 +66,10 @@ export const NotificationProvider = ({ children }) => {
 
   // Create audio element once and unlock on first user interaction
   useEffect(() => {
+
+     // Only create audio when a user is present to avoid logs / attempts before login
+    if (!currentUser) return undefined;
+
     try {
       // Audio file placed at public/sounds/notification.mp3
       audioRef.current = new Audio('/sounds/notification.mp3');
@@ -103,38 +107,50 @@ export const NotificationProvider = ({ children }) => {
         document.addEventListener(event, unlockAudio, { once: true });
       });
 
-      return () => {
-        // Cleanup event listeners
+        return () => {
+        // Cleanup event listeners and audio
         events.forEach(event => {
           document.removeEventListener(event, unlockAudio);
         });
+        try {
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.src = '';
+            audioRef.current = null;
+          }
+        } catch (e) { /* ignore */ }
       };
     } catch (err) {
       console.warn('Failed to create audio element for notifications', err);
       audioRef.current = null;
     }
-  }, []);
+  }, [currentUser]);
 
   // Load items whenever the account changes
   useEffect(() => {
     try {
+      // mark that we're doing an initial load for this sub-user (prevent sound)
+      initialLoadedRef.current = false;
+
       const raw = localStorage.getItem(storageKey);
       const parsed = raw ? JSON.parse(raw) : [];
       const hydrated = Array.isArray(parsed) ? parsed.map((n) => {
         if (!n.createdAt) n.createdAt = Date.now();
-         if (typeof n.read === 'undefined') n.read = !!n.is_read;
-         return n;
-      }).filter(n => shouldPersist(n)) : [];
+        if (typeof n.read === 'undefined') n.read = !!n.is_read;
+       return n;
+     }).filter(n => shouldPersist(n)) : [];
+
       setItems(hydrated);
 
-         // Initialize prevCountRef to unread count so initial render won't trigger sound
+      // Initialize prevCountRef to unread count so initial render won't trigger sound
       prevCountRef.current = hydrated.filter((i) => !i.read).length;
-      initialLoadedRef.current = true;
+      // mark initial load as complete for this sub-user
+
     } catch (err) {
       console.error('Failed to load notifications from storage', storageKey, err);
       setItems([]);
       prevCountRef.current = 0;
-      initialLoadedRef.current = true;
+      initialLoadedRef.current = false;
     }
   }, [storageKey, shouldPersist]);
 
@@ -338,7 +354,7 @@ export const NotificationProvider = ({ children }) => {
     let mounted = true;
     let intervalId = null;
 
-    const fetchAndMerge = async () => {
+        const fetchAndMerge = async () => {
       if (!selectedSubUser) {
         // clear in-memory items for no-selection; keep persisted storage untouched
         if (mounted) setItems([]);
@@ -347,7 +363,14 @@ export const NotificationProvider = ({ children }) => {
 
       try {
         const res = await getNotifications(subUserIdForStorage);
-        if (!(res.status >= 200 && res.status < 300)) return;
+        if (!(res.status >= 200 && res.status < 300)) {
+          // Even if the request failed, ensure we mark initial load complete so we don't block future detection.
+          if (!initialLoadedRef.current) {
+            initialLoadedRef.current = true;
+            prevCountRef.current = itemsRef.current ? itemsRef.current.filter(i => !i.read).length : 0;
+          }
+          return;
+        }
         const data = res?.data?.data || [];
 
         // normalize incoming notifications
@@ -362,15 +385,39 @@ export const NotificationProvider = ({ children }) => {
             isSuccess: !!n.isSuccess,
             projectData: n.project_id ? { projectId: n.project_id } : null,
             createdAt,
-
             read: !!n.is_read,
           };
         }) : [];
 
         const existingIds = new Set(itemsRef.current.map(i => i.id));
         const newItems = incoming.filter(i => !existingIds.has(i.id));
+
+        if (!initialLoadedRef.current) {
+          // First remote poll for this sub-user: merge incoming and set initialLoadedRef but DO NOT play sound.
           if (newItems.length > 0 && mounted) {
-          // map incoming items to provider item shape (preserve read flag from API)
+            const mapped = newItems.map((n) => ({
+              id: n.id,
+              title: n.title || '',
+              message: n.message || n.description || '',
+              type: n.type || (n.isSuccess ? 'success' : 'info'),
+              isSuccess: !!n.isSuccess,
+              projectData: n.projectData || n.project_id ? { projectId: n.project_id } : null,
+              createdAt: n.createdAt || Date.now(),
+              read: !!n.read,
+            }));
+
+            setItems((prev) => {
+              const existing = new Set(prev.map(i => i.id));
+              const toPrepend = mapped.filter(m => !existing.has(m.id));
+              const merged = [...toPrepend, ...prev].slice(0, 200);
+              return merged;
+            });
+          }
+          // Mark initial load done and sync unread counter
+          initialLoadedRef.current = true;
+          prevCountRef.current = itemsRef.current ? itemsRef.current.filter(i => !i.read).length : (incoming.filter(i => !i.read).length);
+        } else if (newItems.length > 0 && mounted) {
+          // Subsequent polls: only now play sound for new incoming mapped items
           const mapped = newItems.map((n) => ({
             id: n.id,
             title: n.title || '',
@@ -379,17 +426,16 @@ export const NotificationProvider = ({ children }) => {
             isSuccess: !!n.isSuccess,
             projectData: n.projectData || n.project_id ? { projectId: n.project_id } : null,
             createdAt: n.createdAt || Date.now(),
-            read: !!n.read, // false for unread
+            read: !!n.read,
           }));
 
-          // prepend mapped items (dedupe by id)
           setItems((prev) => {
             const existing = new Set(prev.map(i => i.id));
             const toPrepend = mapped.filter(m => !existing.has(m.id));
             const merged = [...toPrepend, ...prev].slice(0, 200);
             return merged;
-          });// Play sound for new incoming notifications (best-effort)
-          // Do not play on first initial load (initialLoadedRef guards it)
+          });
+
           (async () => {
             try {
               await playNotificationSoundFor(mapped);
@@ -397,12 +443,21 @@ export const NotificationProvider = ({ children }) => {
               console.warn('playNotificationSoundFor error', e);
             }
           })();
+
+          // update prev unread count
+          prevCountRef.current = itemsRef.current ? itemsRef.current.filter(i => !i.read).length : 0;
         }
       } catch (err) {
         console.warn('Failed to poll notifications:', err);
+        // ensure initial load is marked complete to avoid indefinite blocking
+        if (!initialLoadedRef.current) {
+          initialLoadedRef.current = true;
+          prevCountRef.current = itemsRef.current ? itemsRef.current.filter(i => !i.read).length : 0;
+        }
       }
     };
-
+      
+  
     // run immediately and then every 10s
     fetchAndMerge();
     intervalId = setInterval(fetchAndMerge, 20 * 1000);

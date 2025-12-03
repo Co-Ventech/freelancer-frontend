@@ -116,9 +116,25 @@ const NotificationBell = () => {
                 ? (isSuccess ? '#28a745' : '#dc3545')
                 : (n.type === 'success' ? '#28a745' : n.type === 'error' ? '#dc3545' : '#6c757d');
 
+                 // Determine error-style (explicit failure) to change the card styling
+              const isErrorCard = (typeof n.isSuccess !== 'undefined' && n.isSuccess === false) || n.type === 'error';
+              const cardBackground = n.read ? '#ffffff' : (isErrorCard ? '#fff5f5' : '#f8f9fa');
+              const cardBorderBottom = '1px solid #f1f3f5';
+              const titleColor = isErrorCard ? '#b02a37' : '#343a40';
+              const descriptionColor = isErrorCard ? '#7a2430' : '#495057';
               return (
-                <div key={n.id} style={{ display: 'flex', gap: 12, padding: 14, borderBottom: '1px solid #f1f3f5', background: n.read ? 'white' : '#f8f9fa' }}>
-                  <div style={{
+                <div
+                  key={n.id}
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    padding: 14,
+                    borderBottom: cardBorderBottom,
+                    background: cardBackground,
+                    borderLeft: `4px solid ${isErrorCard ? '#f5c2c7' : 'transparent'}` // subtle left accent for errors
+                  }}
+                >         
+                 <div style={{
                     width: 8,
                     height: 8,
                     marginTop: 6,
@@ -128,13 +144,14 @@ const NotificationBell = () => {
                   }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontWeight: 600, color: '#343a40' }}>{title}</span>
-                      <span style={{ fontSize: 12, color: '#868e96' }}>{formatTime(n.createdAt)}</span>
-                    </div>
-                    <div style={{ color: '#495057', fontSize: 14 }}>
+                     <span style={{ fontWeight: 600, color: titleColor }}>{title}</span>
+                     <span style={{ fontSize: 12, color: '#868e96' }}>{formatTime(n.createdAt)}</span>
+                     </div>
+                   <div style={{ color: descriptionColor, fontSize: 14 }}>
                       {/* show API description first if available */}
                       {description || n.message || 'No additional details'}
                     </div>
+
                     <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                       {n.projectData && (
                         <button 
