@@ -19,6 +19,8 @@ const ProposalModal = ({
   calculateBidAmount,
   initialPeriod = 5,
   clientPublicName = null,
+  initialProposal = null,   // NEW: api-provided proposal string
+  apiLoading = false,  
 }) => {
   const storageKey = useMemo(() => `${PROPOSAL_STORAGE_PREFIX}${projectId}`, [projectId]);
   const [amount, setAmount] = useState(0);
@@ -79,8 +81,8 @@ const personalizeProposal = (template, clientName) => {
   };
 
   // generate proposal when AI toggle enabled — define fetch inline so effect deps are explicit
-  useEffect(() => {
-    if (!open) return;
+   useEffect(() => {
+    if (!open) return;  
 
     if (isAiProposalEnabled) {
       const ctrl = new AbortController();
@@ -95,22 +97,20 @@ const personalizeProposal = (template, clientName) => {
               title: projectTitle,
               description: projectDescription,
               name: displayName,
-              public_name: publicName,     // bidder's public name (existing)
-              username: username,         // bidder username (existing)
-              client_public_name: clientPublicName // NEW: pass client public name so backend can personalize greeting
-
+              public_name: publicName,
+              username: username,
+              client_public_name: clientPublicName
             },
             { signal: ctrl.signal }
           );
 
           if (response?.status === 200) {
             setProposal(response.data.proposal);
+          } else {
+            setProposal('Failed to generate proposal.');
           }
         } catch (err) {
-          // ignore cancellation
-          if (err?.name === 'CanceledError' || err?.message === 'canceled') {
-            return;
-          }
+          if (err?.name === 'CanceledError' || err?.message === 'canceled') return;
           console.error('Error generating proposal:', err);
           setProposal('Failed to generate proposal.');
           setError('Could not generate proposal. Please try again.');
@@ -121,13 +121,27 @@ const personalizeProposal = (template, clientName) => {
       doFetch();
       return () => ctrl.abort();
     } else {
+      // if server-side generation still in progress, show generating state
+      if (apiLoading) {
+        setLoadingProposal(true);
+        return;
+      }
+      setLoadingProposal(false);
+
+      // Use API-provided proposal only when it's a non-empty string.
+      // If API returned null/undefined or an empty string, fall back to personalized/general proposal.
+      const hasApiProposal = typeof initialProposal === 'string' && initialProposal.trim().length > 0;
+      if (hasApiProposal) {
+        setProposal(initialProposal);
+        return;
+      }
+
+      // fallback: personalized user template or general proposal
       const personalized = subUserTemplate ? personalizeProposal(subUserTemplate, clientPublicName) : null;
       const generalProposal = personalized || getGeneralProposal(displayName, clientPublicName);
       setProposal(generalProposal);
-
     }
-  }, [isAiProposalEnabled, displayName, projectId, projectTitle, projectDescription, open]);
-
+  }, [isAiProposalEnabled, displayName, projectId, projectTitle, projectDescription, open, initialProposal, apiLoading]);
   // Persist on change (debounced light)
   useEffect(() => {
     if (!open) return;
@@ -210,8 +224,11 @@ const personalizeProposal = (template, clientName) => {
                   rows={6}
                   value={proposal}
                   onChange={(e) => setProposal(e.target.value)}
+                   disabled={loadingProposal || apiLoading}
                 />
-                <div className="mt-1 text-xs text-gray-400">Saved automatically</div>
+              <div className="mt-1 text-xs text-gray-400">
+                  {apiLoading ? 'Generating proposal from API…' : loadingProposal ? 'Generating…' : 'Saved automatically'}
+                </div>
               </div>
               <div className="space-y-3">
                 {/*  */}

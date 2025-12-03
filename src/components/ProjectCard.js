@@ -4,12 +4,22 @@ import { useBidding } from '../hooks/useBidding';
 import bidService from '../services/bidService';
 import ProposalModal from './ProposalModal';
 import { useFreelancerAPI } from '../hooks/useFreelancerAPI';
+import { useUsersStore } from '../store/useUsersStore';
+import axios from 'axios';
+import { getAuthHeaders } from '../utils/api';
+
 
 const ProjectCard = ({ project, usersMap = null }) => {
   const { calculateBidAmount, placeBidManual } = useFreelancerAPI();
   const { loading, error, success, clearError } = useBidding();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
+   const [initialProposal, setInitialProposal] = useState(null);
+  const [apiProposalLoading, setApiProposalLoading] = useState(false);
+
+  // get selected sub-user (to send templates/skills/bidder name)
+  const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
+
   // Extract project data with fallbacks based on the actual API response structure
   const {
     id = 'N/A',
@@ -115,6 +125,8 @@ const ProjectCard = ({ project, usersMap = null }) => {
   const ownerUser = getOwnerUserObject(project);
   const ownerUsername = ownerUser?.username || ownerUser?.user_name || ownerUser?.displayName || null;
   const ownerProfileUrl = ownerUsername ? `https://www.freelancer.com/u/${ownerUsername}` : null;
+  
+  const clientPublicName = ownerUser?.public_name ?? ownerUser?.publicName ?? ownerUser?.displayName ?? ownerUsername ?? null;
 
 
 
@@ -199,27 +211,60 @@ const ProjectCard = ({ project, usersMap = null }) => {
 
   const clientReview = getClientReview(project);
 
-   // --- Employer reputation parsing (safe defaults) ---
   const employerReputation = ownerUser?.employer_reputation || project.employer_reputation || ownerUser?.profile?.employer_reputation || {};
   const repEntire = employerReputation?.entire_history || {};
   const rep3 = employerReputation?.last3months || {};
   const rep12 = employerReputation?.last12months || {};
 
-  const safeNum = (v) => (typeof v === 'number' && !Number.isNaN(v) ? v : 0);
-  const formatPct = (v) => (typeof v === 'number' ? `${(v * 100).toFixed(0)}%` : 'N/A');
   const formatCount = (v) => (typeof v === 'number' ? v : 0);
   const formatRating = (v) => (typeof v === 'number' ? v.toFixed(1) : 'N/A');
 
 
-
-  // Handle opening bid modal
-  const handleOpenBid = () => {
+ const handleOpenBid = async () => {
     if (hasAlreadyBid) {
       alert('You have already placed a bid on this project.');
       return;
     }
-    setIsModalOpen(true);
+
+     setIsModalOpen(true);
+  setApiProposalLoading(true);
+  setInitialProposal(null);
+    try {
+      const payload = {
+        proposal: Array.isArray(selectedSubUser?.templates) ? selectedSubUser.templates : [],
+        bidder_name: selectedSubUser?.sub_username || selectedSubUser?.name || undefined,
+        client_name: clientPublicName || ownerUsername || 'Client',
+        job_title: title,
+        job_description: projectDescription,
+        skills: Array.isArray(selectedSubUser?.skills) ? selectedSubUser.skills : [],
+      };
+       const url = `${process.env.REACT_APP_API_BASE_URL.replace(/\/$/, '')}/recommend-proposal`;
+      const headers = getAuthHeaders() || {}; // reads idToken/accessToken from cookies or provided token
+
+
+     const resp = await axios.post(url, payload, {
+        headers,
+        // withCredentials: true, // ensure cookies (access_token) are sent
+        timeout: 30000,
+      });
+      if (resp?.status === 200 && resp.data) {
+      const rawProposal = resp.data.proposal ?? (resp.data.data && resp.data.data.proposal) ?? null;
+        const proposalString = (typeof rawProposal === 'string' && rawProposal.trim().length > 0) ? rawProposal : null;
+        setInitialProposal(proposalString);
+      } else {
+        // no proposal returned — keep null and modal will fallback to local proposal generation
+        console.warn('recommend-proposal returned unexpected response', resp?.status, resp?.data);
+        setInitialProposal(null);
+      }
+    } catch (err) {
+      console.error('Error fetching recommended proposal:', err);
+      setInitialProposal(null);
+    } finally {
+      setApiProposalLoading(false);
+      // setIsModalOpen(true);
+    }
   };
+
 
   // Handle bid submission from modal
   const handleSubmitBid = async ({ amount, period, description }) => {
@@ -580,6 +625,8 @@ const ProjectCard = ({ project, usersMap = null }) => {
         type={project.type}
         calculateBidAmount={calculateBidAmount}
         clientPublicName={ownerUser?.public_name ?? ownerUser?.publicName ?? null}
+        initialProposal={initialProposal}      
+        apiLoading={apiProposalLoading} 
       />
     </div>
   );
