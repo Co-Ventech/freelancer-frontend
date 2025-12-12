@@ -19,6 +19,8 @@ import { useNavigate } from 'react-router-dom';
 import SubUserRegister from './components/SubUserRegister';
 import { useUsersStore } from './store/useUsersStore';
 import UserSwitcher from './components/UserSwitcher';
+import TopBanner from './components/ui/TopBanner';
+import About from './pages/About';
 
 
 
@@ -146,6 +148,7 @@ const MainApp = () => {
 
   return (
     <div className="App">
+      <TopBanner />
       {/* Simple header with user info and logout */}
       <header className="app-header" style={{
         display: 'flex',
@@ -402,6 +405,7 @@ function App() {
                 <Routes>
                   <Route path="/login" element={<LoginForm />} />
                   <Route path="/register" element={<RegisterForm />} />
+                  <Route path="/about" element={<About />} />
                   <Route path="/bids" element={<SuccessBidsPage />} />
 
                   <Route
