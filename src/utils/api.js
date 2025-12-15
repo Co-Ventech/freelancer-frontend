@@ -107,10 +107,43 @@ export const getAuthHeaders = (idToken) => {
 };
 
 export const getSubUsers = async (parentUid, idToken = null) => {
-  const url = buildUrl(`${API_BASE.replace(/\/$/, '')}${ENDPOINTS.SUB_USERS}`, { uid: parentUid });
+  const params = {};
+  if (parentUid !== undefined && parentUid !== null && String(parentUid).trim() !== '') {
+    params.parent_uid = String(parentUid);
+  }
+
   const headers = getAuthHeaders(idToken);
-  return apiClient.get(url, { headers});
+
+  // debug URL for easier inspection in network / console
+  try {
+    const debugUrl = buildUrl(`${API_BASE_CLEAN}${ENDPOINTS.SUB_USERS}`, params);
+    // eslint-disable-next-line no-console
+    console.debug('[api.getSubUsers] url:', debugUrl, 'headers:', headers);
+  } catch (e) { /* ignore */ }
+
+  try {
+    const res = await apiClient.get(ENDPOINTS.SUB_USERS, { headers, params, validateStatus: () => true });
+    // surface server body on errors for easier debugging
+    if (res.status >= 400) {
+      // eslint-disable-next-line no-console
+      console.error('[api.getSubUsers] server error', res.status, res.data);
+    }
+    return res;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[api.getSubUsers] network error', err?.response?.data || err.message || err);
+    throw err;
+  }
 };
+
+// export const getSubUsers = async (parentUid, idToken = null) => {
+//  const params = {};
+//   if (parentUid) params.parent_uid = String(parentUid);
+//   const headers = getAuthHeaders(idToken);
+//   // use apiClient.get with params so axios constructs URL correctly
+//   return apiClient.get(ENDPOINTS.SUB_USERS, { headers, params, validateStatus: () => true });
+
+// };
 
 /**
  * Update a sub-user via backend PATCH /sub-users?sub_user_id=<id>
@@ -118,6 +151,39 @@ export const getSubUsers = async (parentUid, idToken = null) => {
  * payload: object with fields to update (autobid_enabled, autobid_enabled_for_job_type, etc.)
  * idToken optional - will fallback to cookie if not provided
  */
+export const deleteSubUser = async (subUserId, parentUid = null, idToken = null) => {
+  if (!subUserId) throw new Error('subUserId required');
+
+  const params = { sub_user_id: String(subUserId) };
+  // only include parent_uid when explicitly provided (avoid 'undefined' or '')
+  if (parentUid !== undefined && parentUid !== null && String(parentUid).trim() !== '') {
+    params.parent_uid = String(parentUid);
+  }
+
+  const headers = { 'Content-Type': 'application/json', ...getAuthHeaders(idToken) };
+
+  // debug: show the final request URL and params
+  try {
+    // eslint-disable-next-line no-console
+    console.debug('[api.deleteSubUser] params:', params);
+  } catch (e) {}
+
+  try {
+    const res = await apiClient.delete(ENDPOINTS.SUB_USERS, { headers, params, validateStatus: () => true });
+    if (!(res.status >= 200 && res.status < 300)) {
+      const errMsg = res?.data?.message || `Failed to delete sub-user: ${res.status}`;
+      const err = new Error(errMsg);
+      err.response = res;
+      throw err;
+    }
+    return res;
+  } catch (err) {
+    const msg = err?.response?.data?.message || err.message || 'Failed to call deleteSubUser';
+    const error = new Error(msg);
+    error.original = err;
+    throw error;
+  }
+};
 export const updateSubUser = async (subUserId, payload = {}, idToken = null) => {
   if (!subUserId) throw new Error('subUserId required');
   const url = `${API_BASE.replace(/\/$/, '')}${ENDPOINTS.SUB_USERS}?sub_user_id=${encodeURIComponent(subUserId)}`;

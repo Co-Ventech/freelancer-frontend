@@ -75,48 +75,147 @@ export const useUsersStore = create((set, get) => {
     /* SUB-USERS */
     
 
-    fetchUsers: async (parentUid, idToken = null) => {
-      if (!parentUid) throw new Error('parentUid is required to fetch sub-users');
-      set({ loading: true, error: null });
-      try {
-        const res = await getSubUsers(parentUid, idToken);
-        if (!(res.status >= 200 && res.status < 300)) {
-          const msg = res?.data?.message || `Failed to fetch sub-users: ${res.status}`;
-          set({ error: msg, loading: false });
-          throw new Error(msg);
-        }
-        const data = res?.data?.data || res?.data || [];
-        const users = Array.isArray(data) ? data : [];
+    
+    // fetchUsers: async (parentUid, idToken = null) => {
+    //   if (!parentUid) throw new Error('parentUid is required to fetch sub-users');
+    //   set({ loading: true, error: null });
+    //   try {
+    //     const res = await getSubUsers(parentUid, idToken);
+    //     if (!(res.status >= 200 && res.status < 300)) {
+    //       const msg = res?.data?.message || `Failed to fetch sub-users: ${res.status}`;
+    //       set({ error: msg, loading: false });
+    //       throw new Error(msg);
+    //     }
+    //     const data = res?.data?.data || res?.data || [];
+    //     const users = Array.isArray(data) ? data : [];
 
-        const currentSelected = get().selectedKey;
-        const defaultSelected = users[0] ? (users[0].sub_username || users[0].sub_user_id || String(users[0].id)) : null;
-        const selectedKey = currentSelected || defaultSelected;
+    //     const currentSelected = get().selectedKey;
+    //     const defaultSelected = users[0] ? (users[0].sub_username || users[0].sub_user_id || String(users[0].id)) : null;
+    //     const selectedKey = currentSelected || defaultSelected;
 
-        const prevState = get();
-        const shouldUpdateUsers = !usersShallowEqual(prevState.users, users);
-        const shouldUpdateSelected = prevState.selectedKey !== selectedKey;
+    //     const prevState = get();
+    //     const shouldUpdateUsers = !usersShallowEqual(prevState.users, users);
+    //     const shouldUpdateSelected = prevState.selectedKey !== selectedKey;
 
-        const nextState = {};
-        if (shouldUpdateUsers) nextState.users = users;
-        if (shouldUpdateSelected) nextState.selectedKey = selectedKey;
-        nextState.loading = false;
-        nextState.error = null;
+    //     const nextState = {};
+    //     if (shouldUpdateUsers) nextState.users = users;
+    //     if (shouldUpdateSelected) nextState.selectedKey = selectedKey;
+    //     nextState.loading = false;
+    //     nextState.error = null;
 
-        if (Object.keys(nextState).length > 1 || shouldUpdateUsers || shouldUpdateSelected) {
-          set(nextState);
-        } else {
-          set({ loading: false });
-        }
+    //     if (Object.keys(nextState).length > 1 || shouldUpdateUsers || shouldUpdateSelected) {
+    //       set(nextState);
+    //     } else {
+    //       set({ loading: false });
+    //     }
 
-        try { if (selectedKey) localStorage.setItem('SELECTED_SUB_USER', selectedKey); } catch {}
-        return users;
-      } catch (err) {
-        set({ error: err?.message || String(err), loading: false });
-        throw err;
-      }
-    },
+    //     try { if (selectedKey) localStorage.setItem('SELECTED_SUB_USER', selectedKey); } catch {}
+    //     return users;
+    //   } catch (err) {
+    //     set({ error: err?.message || String(err), loading: false });
+    //     throw err;
+    //   }
+    // },
 
-    updateSubUser: async (subUserIdOrObj, payload = {}, idToken = null) => {
+fetchUsers: async (parentUid, idToken = null) => {
+  // Resolve parentUid from arguments or store/localStorage as fallback
+  let resolvedParent = parentUid;
+  if (!resolvedParent) {
+    try { resolvedParent = get().parentUid || (localStorage.getItem('PARENT_UID') || localStorage.getItem('parentUid')) || null; } catch (e) { resolvedParent = get().parentUid || null; }
+  }
+
+  if (!resolvedParent) {
+    const errMsg = 'parentUid is required to fetch sub-users (resolved none).';
+    set({ error: errMsg, loading: false });
+    throw new Error(errMsg);
+  }
+
+  set({ loading: true, error: null });
+  try {
+    const res = await getSubUsers(resolvedParent, idToken);
+
+    // if server returned 500 or other, include returned message
+    if (!(res.status >= 200 && res.status < 300)) {
+      const serverMsg = res?.data?.message || res?.data || `Failed to fetch sub-users: ${res.status}`;
+      set({ error: serverMsg, loading: false });
+      throw new Error(serverMsg);
+    }
+
+    const data = res?.data?.data ?? res?.data ?? [];
+    const users = Array.isArray(data) ? data : [];
+
+    // store parentUid so subsequent calls reuse same value
+    const currentSelected = get().selectedKey;
+    const defaultSelected = users[0] ? (users[0].sub_username || users[0].sub_user_id || String(users[0].id)) : null;
+    const selectedKey = currentSelected || defaultSelected;
+
+    const prevState = get();
+    const shouldUpdateUsers = !usersShallowEqual(prevState.users, users);
+    const shouldUpdateSelected = prevState.selectedKey !== selectedKey;
+
+    const nextState = {};
+    if (shouldUpdateUsers) nextState.users = users;
+    if (shouldUpdateSelected) nextState.selectedKey = selectedKey;
+    nextState.parentUid = resolvedParent;
+    nextState.loading = false;
+    nextState.error = null;
+
+    set(nextState);
+    try { if (selectedKey) localStorage.setItem('SELECTED_SUB_USER', selectedKey); } catch {}
+
+    return users;
+  } catch (err) {
+    const msg = err?.response?.data?.message || err?.message || String(err);
+    set({ error: msg, loading: false });
+    // eslint-disable-next-line no-console
+    console.error('[useUsersStore.fetchUsers] failed', msg, err?.response?.data || err);
+    throw err;
+  }
+},
+
+
+    // fetchUsers: async (parentUid, idToken = null) => {
+    //   if (!parentUid) throw new Error('parentUid is required to fetch sub-users');
+    //   set({ loading: true, error: null });
+    //   try {
+    //     const res = await getSubUsers(parentUid, idToken);
+    //     if (!(res.status >= 200 && res.status < 300)) {
+    //       const msg = res?.data?.message || `Failed to fetch sub-users: ${res.status}`;
+    //       set({ error: msg, loading: false });
+    //       throw new Error(msg);
+    //     }
+    //     const data = res?.data?.data || res?.data || [];
+    //     const users = Array.isArray(data) ? data : [];
+
+    //     const currentSelected = get().selectedKey;
+    //     const defaultSelected = users[0] ? (users[0].sub_username || users[0].sub_user_id || String(users[0].id)) : null;
+    //     const selectedKey = currentSelected || defaultSelected;
+
+    //     const prevState = get();
+    //     const shouldUpdateUsers = !usersShallowEqual(prevState.users, users);
+    //     const shouldUpdateSelected = prevState.selectedKey !== selectedKey;
+
+    //     const nextState = {};
+    //     if (shouldUpdateUsers) nextState.users = users;
+    //     if (shouldUpdateSelected) nextState.selectedKey = selectedKey;
+    //     nextState.loading = false;
+    //     nextState.error = null;
+
+    //     if (Object.keys(nextState).length > 1 || shouldUpdateUsers || shouldUpdateSelected) {
+    //       set(nextState);
+    //     } else {
+    //       set({ loading: false });
+    //     }
+
+    //     try { if (selectedKey) localStorage.setItem('SELECTED_SUB_USER', selectedKey); } catch {}
+    //     return users;
+    //   } catch (err) {
+    //     set({ error: err?.message || String(err), loading: false });
+    //     throw err;
+    //   }
+    // },
+
+     updateSubUser: async (subUserIdOrObj, payload = {}, idToken = null) => {
       // resolve id
       let subUserId = subUserIdOrObj;
       if (typeof subUserIdOrObj === 'object' && subUserIdOrObj !== null) {
@@ -201,6 +300,93 @@ export const useUsersStore = create((set, get) => {
       }
     },
 
+
+    // updateSubUser: async (subUserIdOrObj, payload = {}, idToken = null) => {
+    //   // resolve id
+    //   let subUserId = subUserIdOrObj;
+    //   if (typeof subUserIdOrObj === 'object' && subUserIdOrObj !== null) {
+    //     subUserId = resolveCanonicalUserId(subUserIdOrObj);
+    //   }
+    //   if (!subUserId) throw new Error('subUserId required');
+
+    //   const wasLoading = get().loading;
+    //   if (!wasLoading) set({ loading: true, error: null });
+
+    //   // optimistic update: merge nested plain objects
+    //   const prevUsers = get().users || [];
+    //   const optimisticUsers = prevUsers.map((u) => {
+    //     const id = resolveCanonicalUserId(u);
+    //     if (!id || String(id) !== String(subUserId)) return u;
+
+    //     let merged = { ...u, ...payload };
+    //     Object.keys(payload || {}).forEach((key) => {
+    //       const incoming = payload[key];
+    //       const existing = u[key];
+    //       if (isPlainObject(incoming) && isPlainObject(existing)) {
+    //         merged = { ...merged, [key]: mergeNestedMaps(existing, incoming) };
+    //       }
+    //     });
+    //     return merged;
+    //   });
+
+    //   if (!usersShallowEqual(prevUsers, optimisticUsers)) set({ users: optimisticUsers });
+
+    //   try {
+    //     const res = await apiUpdateSubUser(subUserId, payload, idToken);
+    //     const serverData = res?.data?.data || res?.data || null;
+
+    //     // reconcile with store
+    //     const currentUsers = get().users || [];
+    //     const mergedUsers = currentUsers.map((u) => {
+    //       const id = resolveCanonicalUserId(u);
+    //       if (!id || String(id) !== String(subUserId)) return u;
+
+    //       let merged = { ...u, ...(serverData || {}), ...payload };
+
+    //       const candidateKeys = new Set([
+    //         ...Object.keys(u || {}),
+    //         ...Object.keys(payload || {}),
+    //         ...(serverData ? Object.keys(serverData) : []),
+    //       ]);
+
+    //       candidateKeys.forEach((key) => {
+    //         const existingVal = u[key];
+    //         const payloadVal = payload ? payload[key] : undefined;
+    //         const serverVal = serverData ? serverData[key] : undefined;
+    //         if (isPlainObject(existingVal) || isPlainObject(payloadVal) || isPlainObject(serverVal)) {
+    //           merged = {
+    //             ...merged,
+    //             [key]: mergeNestedMaps(
+    //               isPlainObject(existingVal) ? existingVal : {},
+    //               isPlainObject(payloadVal) ? payloadVal : {},
+    //               isPlainObject(serverVal) ? serverVal : {}
+    //             ),
+    //           };
+    //         }
+    //       });
+
+    //       return merged;
+    //     });
+
+    //     if (!usersShallowEqual(currentUsers, mergedUsers)) {
+    //       set({ users: mergedUsers, loading: false });
+    //     } else {
+    //       set({ loading: false });
+    //     }
+
+    //     return serverData;
+    //   } catch (err) {
+    //     // revert by re-fetching users if possible
+    //     const parentUid = get().parentUid || null;
+    //     if (parentUid) {
+    //       try { await get().fetchUsers(parentUid); } catch (_) { /* ignore */ }
+    //     }
+    //     set({ error: err?.message || String(err), loading: false });
+    //     throw err;
+    //   }
+    // },
+
+    
     /* TEMPLATE CATEGORIES */
     loadTemplateCategories: async (subUserIdOrKey) => {
       if (!subUserIdOrKey) return [];
@@ -467,6 +653,114 @@ export const useUsersStore = create((set, get) => {
       return true;
     },
 
+     aiTemplates: [],
+  aiLoading: false,
+  aiError: null,
+
+  loadAiTemplates: async (subUserIdOrKey) => {
+   // accept either sub-user object or id/key
+    if (!subUserIdOrKey) return [];
+    let subUserId = subUserIdOrKey;
+    if (typeof subUserIdOrKey === 'object' && subUserIdOrKey !== null) {
+      subUserId = resolveCanonicalUserId(subUserIdOrKey);
+    }
+    const users = get().users || [];
+    let idx = findUserIndexById(users, subUserId);
+    if (idx === -1 && get().selectedKey) idx = findUserIndexById(users, get().selectedKey);
+    if (idx === -1) return [];
+    const raw = users[idx].ai_templates || users[idx].aiTemplates || [];
+    const normalized = (Array.isArray(raw) ? raw : []).map((t, i) => ({
+      id: t.id || uuidv4(),
+      content: t.content || '',
+      title: t.title || (t.content ? String(t.content).slice(0, 60) : 'Untitled'),
+      skills: t.skills || 'All skills',
+      createdAt: t.createdAt || t.created_at || Date.now(),
+      updatedAt: t.updatedAt || t.updated_at || null,
+      order: typeof t.order === 'number' ? t.order : i,
+      ...t,
+    })).sort((a,b) => {
+      if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order ?? 0) - (b.order ?? 0);
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+    set({ aiTemplates: normalized });
+    return normalized;
+  },
+
+  addAiTemplate: async (subUserIdOrKey, payload) => {
+    if (!subUserIdOrKey || !payload) throw new Error('subUserId and payload required');
+    // accept object or id
+    let subUserId = subUserIdOrKey;
+    if (typeof subUserIdOrKey === 'object' && subUserIdOrKey !== null) {
+      subUserId = resolveCanonicalUserId(subUserIdOrKey);
+    }
+    if (!subUserId) throw new Error('subUserId required');
+    const users = get().users || [];
+    const idx = findUserIndexById(users, subUserId);
+    if (idx === -1) throw new Error('Sub-user not found');
+
+    const existing = Array.isArray(users[idx].ai_templates) ? [...users[idx].ai_templates] : (Array.isArray(users[idx].aiTemplates) ? [...users[idx].aiTemplates] : []);
+    const newTpl = {
+      id: uuidv4(),
+      // title: payload.title || (payload.content ? String(payload.content).slice(0, 60) : 'Untitled'),
+      content: payload.content || '',
+      skills: payload.skills || '',
+      createdAt: Date.now(),
+      updatedAt: null,
+      order: existing.length,
+      ...payload,
+    };
+    const next = [...existing, newTpl];
+    const canonicalId = resolveCanonicalUserId(users[idx]) || subUserId;
+    if (!canonicalId) throw new Error('Cannot resolve canonical sub-user id to persist');
+    await apiUpdateSubUser(canonicalId, { ai_templates: next });
+ 
+    const nextUsers = [...users];
+    nextUsers[idx] = { ...nextUsers[idx], ai_templates: next };
+    set({ users: nextUsers, aiTemplates: next });
+    return newTpl;
+  },
+
+  updateAiTemplate: async (subUserIdOrKey, templateId, patch = {}) => {
+   if (!subUserIdOrKey || !templateId) throw new Error('subUserId and templateId required');
+    let subUserId = subUserIdOrKey;
+    if (typeof subUserIdOrKey === 'object' && subUserIdOrKey !== null) {
+      subUserId = resolveCanonicalUserId(subUserIdOrKey);
+    }
+    if (!subUserId) throw new Error('subUserId required');
+    const users = get().users || [];
+    const idx = findUserIndexById(users, subUserId);
+    if (idx === -1) throw new Error('Sub-user not found');
+ 
+    const existing = Array.isArray(users[idx].ai_templates) ? [...users[idx].ai_templates] : (Array.isArray(users[idx].aiTemplates) ? [...users[idx].aiTemplates] : []);
+    const next = existing.map((t) => (t.id === templateId ? { ...t, ...patch, updatedAt: Date.now() } : t));
+     const canonicalId = resolveCanonicalUserId(users[idx]) || subUserId;
+   if (!canonicalId) throw new Error('Cannot resolve canonical sub-user id to persist');
+    await apiUpdateSubUser(canonicalId, { ai_templates: next });
+
+    const nextUsers = [...users];
+    nextUsers[idx] = { ...nextUsers[idx], ai_templates: next };
+    set({ users: nextUsers, aiTemplates: next });
+    return next.find((t) => t.id === templateId);
+  },
+
+  deleteAiTemplate: async (subUserIdOrKey, templateId) => {
+    if (!subUserIdOrKey || !templateId) throw new Error('subUserId and templateId required');
+    const users = get().users || [];
+    const idx = findUserIndexById(users, subUserIdOrKey);
+    if (idx === -1) throw new Error('Sub-user not found');
+
+    const existing = Array.isArray(users[idx].ai_templates) ? [...users[idx].ai_templates] : (Array.isArray(users[idx].aiTemplates) ? [...users[idx].aiTemplates] : []);
+    const next = existing.filter((t) => t.id !== templateId).map((t, i) => ({ ...t, order: i }));
+    const canonicalId = resolveCanonicalUserId(users[idx]);
+    if (!canonicalId) throw new Error('Cannot resolve canonical sub-user id to persist');
+    await apiUpdateSubUser(canonicalId, { ai_templates: next });
+
+    const nextUsers = [...users];
+    nextUsers[idx] = { ...nextUsers[idx], ai_templates: next };
+    set({ users: nextUsers, aiTemplates: next });
+    return true;
+  },
+
     duplicateTemplate: async (subUserIdOrKey, templateId) => {
       if (!subUserIdOrKey || !templateId) throw new Error('subUserId & templateId required');
       const users = get().users || [];
@@ -500,5 +794,6 @@ export const useUsersStore = create((set, get) => {
       const idx = findUserIndexById(users, selectedKey);
       return idx === -1 ? null : users[idx];
     },
+    
   };
 });

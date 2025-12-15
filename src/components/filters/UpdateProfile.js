@@ -1,7 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { shallow } from 'zustand/shallow';
 import { useUsersStore } from '../../store/useUsersStore';
+import { deleteSubUser, updateSubUser, getSubUsers } from '../../utils/api';
+import { useFirebaseAuth } from '../../contexts/FirebaseAuthContext';
+// import { useCallback } from 'react';
 
 
 const getPossibleParentUid = () => {
@@ -15,8 +18,12 @@ const getPossibleParentUid = () => {
   return null;
 };
 
+
+
 const UpdateProfile = () => {
   const { userId: paramUserId } = useParams();
+  const navigate = useNavigate();
+  const { user: fbUser } = useFirebaseAuth();
   const users = useUsersStore((s) => s.users);
   const errorStore = useUsersStore((s) => s.error);
    const selectedKey = useUsersStore((s) => s.selectedKey);
@@ -26,17 +33,44 @@ const UpdateProfile = () => {
      useUsersStore( shallow);
  
   // Resolve subUserId: route param overrides selectedKey/store lookup
-  const resolvedSubUserId = useMemo(() => {
+  // const resolvedSubUserId = useMemo(() => {
+  //   if (paramUserId) return String(paramUserId);
+  //   if (!selectedKey || !Array.isArray(users)) return null;
+  //   const found = users.find((u) => {
+  //     const id = u.sub_user_id || u.document_id || u.id;
+  //     if (String(id) === String(selectedKey)) return true;
+  //     if (u.sub_username && String(u.sub_username) === String(selectedKey)) return true;
+  //     return false;
+  //   });
+  //   return found ? String(found.sub_user_id || found.document_id || found.id) : null;
+  // }, [paramUserId, selectedKey, users]);
+
+
+   const resolvedParentUid = useMemo(() => {
+    if (storeParentUid) return String(storeParentUid);
+    if (fbUser?.uid) return String(fbUser.uid);
+    try {
+      const ls = window?.localStorage?.getItem('PARENT_UID') || window?.localStorage?.getItem('parentUid');
+      if (ls) return String(ls);
+    } catch (e) {}
+    return null;
+  }, [storeParentUid, fbUser]);
+
+
+    const resolvedSubUserId = useMemo(() => {
     if (paramUserId) return String(paramUserId);
     if (!selectedKey || !Array.isArray(users)) return null;
     const found = users.find((u) => {
-      const id = u.sub_user_id || u.document_id || u.id;
-      if (String(id) === String(selectedKey)) return true;
+      const id = u.sub_user_id || u.document_id || u.id || u.uid;
+      if (id && String(id) === String(selectedKey)) return true;
       if (u.sub_username && String(u.sub_username) === String(selectedKey)) return true;
       return false;
     });
-    return found ? String(found.sub_user_id || found.document_id || found.id) : null;
+    return found ? String(found.sub_user_id || found.document_id || found.id || found.uid) : null;
   }, [paramUserId, selectedKey, users]);
+
+  // const resolvedParentUid = storeParentUid || getPossibleParentUid();
+
 
   // derive current user object from store
   const currentUser = useMemo(() => {
@@ -108,6 +142,39 @@ const UpdateProfile = () => {
     const { name, value, type, checked } = e.target;
     setForm((p) => ({ ...p, [name]: type === 'checkbox' ? checked : value }));
   }, []);
+
+    const handleDelete = useCallback(async () => {
+    setErr(null);
+    setMsg(null);
+    if (!resolvedSubUserId) {
+      setErr('No sub-user selected.');
+      return;
+    }
+    if (!resolvedParentUid) {
+      setErr('Parent UID not available. Please select parent account or re-login.');
+      return;
+    }
+    if (!window.confirm('Are you sure you want to delete this sub-user? This action cannot be undone.')) return;
+
+    setSaving(true);
+    try {
+      const idToken = typeof fbUser?.getIdToken === 'function' ? await fbUser.getIdToken() : null;
+
+      console.debug('Deleting sub-user with', { subUserId: resolvedSubUserId, parent_uid: resolvedParentUid, hasIdToken: !!idToken });
+
+      const res = await deleteSubUser(resolvedSubUserId, resolvedParentUid, idToken);
+
+      console.debug('deleteSubUser response', { status: res?.status, data: res?.data });
+
+      await fetchUsers(resolvedParentUid);
+      navigate('/subusers');
+    } catch (e) {
+      console.error('Delete sub-user failed:', e, e?.response?.data);
+      setErr(e?.message || 'Failed to delete sub-user.');
+    } finally {
+      setSaving(false);
+    }
+  }, [resolvedSubUserId, resolvedParentUid, fbUser, fetchUsers, navigate]);
 
   const handleSave = useCallback(async () => {
     setErr(null);
@@ -236,6 +303,14 @@ const UpdateProfile = () => {
             className="px-4 py-2 border rounded"
           >
             Reset
+          </button>
+           <button
+            type="button"
+            onClick={handleDelete}
+            disabled={saving}
+            className="ml-auto bg-red-600 text-white px-4 py-2 rounded disabled:opacity-60"
+          >
+            Delete Sub-user
           </button>
         </div>
       </form>

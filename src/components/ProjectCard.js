@@ -239,7 +239,7 @@ const ProjectCard = ({ project, usersMap = null }) => {
         skills: Array.isArray(selectedSubUser?.skills) ? selectedSubUser.skills : [],
       };
        const url = `${process.env.REACT_APP_API_BASE_URL.replace(/\/$/, '')}/recommend-proposal`;
-      const headers = getAuthHeaders() || {}; // reads idToken/accessToken from cookies or provided token
+      const headers = getAuthHeaders() || {}; 
 
 
      const resp = await axios.post(url, payload, {
