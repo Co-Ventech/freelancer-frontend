@@ -232,3 +232,31 @@ export const postBid = async (payload = {}, idToken = null) => {
   const headers = {...getAuthHeaders(idToken) };
   return apiClient.post(url, payload, { headers });
 };
+
+export const getNotificationDetails = async (subUserId, notificationId, idToken = null) => {
+  if (!subUserId) throw new Error('subUserId required');
+  if (!notificationId) throw new Error('notificationId required');
+
+  const params = {
+    sub_user_id: String(subUserId),
+    notification_id: String(notificationId),
+  };
+
+  const headers = getAuthHeaders(idToken);
+
+  try {
+    const res = await apiClient.get(`${ENDPOINTS.NOTIFICATIONS}/details`, { headers, params, validateStatus: () => true });
+    if (res.status >= 400) {
+      const msg = res?.data?.message || `Failed to fetch notification details: ${res.status}`;
+      const err = new Error(msg);
+      err.response = res;
+      throw err;
+    }
+    return res;
+  } catch (err) {
+    const msg = err?.response?.data?.message || err.message || 'Network error';
+    const error = new Error(msg);
+    error.original = err;
+    throw error;
+  }
+};

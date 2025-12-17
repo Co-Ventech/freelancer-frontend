@@ -199,8 +199,19 @@ const MainLayout = () => {
   const { user: fbUser, logout } = useFirebaseAuth();
   const fetchUsers = useUsersStore((s) => s.fetchUsers);
   const updateSubUser = useUsersStore((s) => s.updateSubUser);
-  const getSelectedUser = useUsersStore((s) => s.getSelectedUser);
-  const selectedUser = getSelectedUser ? getSelectedUser() : null;
+  // const getSelectedUser = useUsersStore((s) => s.getSelectedUser);
+  // const selectedUser = getSelectedUser ? getSelectedUser() : null;
+ const users = useUsersStore((s) => s.users);
+  const selectedKey = useUsersStore((s) => s.selectedKey);
+  const selectedUser = React.useMemo(() => {
+    if (!selectedKey || !Array.isArray(users)) return null;
+    return users.find((u) => {
+      const ids = [u.document_id, u.sub_user_id, u.id, u._id, u.uid, u.sub_username, u.username];
+      return ids.some((id) => id && String(id) === String(selectedKey));
+    }) || null;
+  }, [users, selectedKey]);
+
+
   const { modalState, closeModal } = useModal();
 
   const [updatingSubUser, setUpdatingSubUser] = useState(false);
@@ -232,14 +243,18 @@ const MainLayout = () => {
   }, [useAiProposal]);
 
   const patchSelectedUser = async (payload) => {
-    if (!selectedUser) {
+    const target = selectedUser;
+    if (!target) {
       alert('Please select an account before updating settings.');
       throw new Error('No selected sub-user');
     }
     setUpdatingSubUser(true);
     try {
-      const subUserId = selectedUser.document_id || selectedUser.sub_user_id || selectedUser.id;
+      // const subUserId = selectedUser.document_id || selectedUser.sub_user_id || selectedUser.id;
+      // await updateSubUser(subUserId, payload);
+       const subUserId = target.document_id || target.sub_user_id || target.id || target._id || target.uid;
       await updateSubUser(subUserId, payload);
+
     } catch (err) {
       console.error('Failed to update sub-user:', err?.message || err);
       alert('Failed to update account settings: ' + (err?.message || err));
@@ -250,14 +265,25 @@ const MainLayout = () => {
   };
 
   const handleToggleAutoBid = async () => {
-    if (!selectedUser) {
+    // if (!selectedUser) {
+    //   alert('Please select an account before toggling AutoBid');
+    //   return;
+    // }
+    // try {
+    //   const newValue = !selectedUser.autobid_enabled;
+    //   await patchSelectedUser({ autobid_enabled: newValue });
+    // } catch (err) { /* handled in patchSelectedUser */ }
+
+     const target = selectedUser;
+   if (!target) {
       alert('Please select an account before toggling AutoBid');
       return;
     }
     try {
-      const newValue = !selectedUser.autobid_enabled;
+      const newValue = !target.autobid_enabled;
       await patchSelectedUser({ autobid_enabled: newValue });
     } catch (err) { /* handled in patchSelectedUser */ }
+
   };
 
   const handleToggleUseAiProposal = async (checked) => {

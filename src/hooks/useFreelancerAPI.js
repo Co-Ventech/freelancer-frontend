@@ -262,7 +262,7 @@ export const useFreelancerAPI = () => {
       // if currently in cooldown, schedule a single retry when cooldown ends
       if (cooldownUntilRef.current && Date.now() < cooldownUntilRef.current) {
         const waitMs = cooldownUntilRef.current - Date.now() + 1000;
-        console.warn(`Cooldown active. Scheduling next fetch in ${Math.ceil(waitMs / 1000)}s`);
+        console.warn(`Cooldown active. Scheduling next fetch in ${Math.ceil(waitMs / 10000)}s`);
         scheduledTimeout = setTimeout(() => {
           fetchRecentProjects().catch((e) => console.warn('Scheduled fetch failed:', e.message));
         }, waitMs);
