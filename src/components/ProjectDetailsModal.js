@@ -158,7 +158,7 @@ const ProjectDetailsModal = ({ projectData, onClose }) => {
             letterSpacing: 0.5,
             marginBottom: 4,
           }}>
-            Project Description
+            Project Proposal
           </label>
           <div style={{
             fontSize: 14,

@@ -1,298 +1,147 @@
-// import React, { useState } from 'react';
-// import { useUsersStore } from '../store/useUsersStore';
 
-
-// const UserSwitcher = () => {
-//   // use Zustand store for sub-users instead of AuthContext
-//   const users = useUsersStore((s) => s.users);
-//   const selectedKey = useUsersStore((s) => s.selectedKey);
-//   const selectUser = useUsersStore((s) => s.selectUser);
-//   const isLoading = useUsersStore((s) => s.loading);
-//   const [isOpen, setIsOpen] = useState(false);
-//   const [isConfirming, setIsConfirming] = useState(false);
-
-//   // Build availableUsers lookup to stay compatible with previous components
-//   const availableUsers = React.useMemo(() => {
-//     const map = {};
-//     (users || []).forEach(u => {
-//       const key = u.sub_username || String(u.id);
-//       map[key] = { name: u.sub_username || u.name || key, color: u.color || 'gray', raw: u };
-//     });
-//     return map;
-//   }, [users]);
-
-//   const currentUser = selectedKey || (Object.keys(availableUsers)[0] || 'DEFAULT');
-
-//   const handleUserSelect = (userKey) => {
-//     // build availableUsers map on the fly (keeps compatibility with previous shape)
-//     const availableUsers = (users || []).reduce((acc, u) => {
-//       const key = u.sub_username || String(u.id);
-//       acc[key] = { name: u.sub_username || u.name || key, color: u.color || 'gray', raw: u };
-//       return acc;
-//     }, {});
-
-//     const currentUser = selectedKey || (Object.keys(availableUsers)[0] || 'DEFAULT');
-
-//     if (userKey === currentUser) {
-//       setIsOpen(false);
-//       return;
-//     }
-
-//     // Show confirmation for page refresh
-//     setIsConfirming(true);
-//     const userInfo = availableUsers[userKey];
-//     const confirmed = window.confirm(
-//       `🔄 Switch to ${userInfo?.name || userKey}?\n\n` +
-//       `This will refresh the page to load the new user's configuration.\n\n` +
-//       `Current user: ${availableUsers[currentUser]?.name || currentUser}\n` +
-//       `New user: ${userInfo?.name || userKey}\n\n` +
-//       `Continue?`
-//     );
-
-//     if (confirmed) {
-//       try {
-//         console.log(`👤 User confirmed switch to ${userKey}`);
-//         selectUser(userKey);
-//         // preserve previous behavior: reload so other contexts reinitialize
-//         window.location.reload();
-//       } catch (err) {
-//         console.error('Failed to switch user:', err);
-//         alert('Failed to switch user. See console for details.');
-//       }
-//     } else {
-//       console.log(`❌ User cancelled switch to ${userKey}`);
-//     }
-
-//     setIsConfirming(false);
-//     setIsOpen(false);
-//   };
-
-//   if (isLoading) {
-//     return (
-//       <div style={{
-//         padding: '8px 16px',
-//         backgroundColor: '#f8f9fa',
-//         border: '1px solid #dee2e6',
-//         borderRadius: '6px',
-//         fontSize: '14px',
-//         color: '#6c757d'
-//       }}>
-//         ⏳ Loading user config...
-//       </div>
-//     );
-//   }
-
-//   const currentUserInfo = availableUsers[currentUser] || { name: currentUser, color: 'gray' };
-
-//   return (
-//     <div style={{ position: 'relative', display: 'inline-block' }}>
-//       {/* Current User Button */}
-//       <button
-//         onClick={() => setIsOpen(!isOpen)}
-//         disabled={isConfirming}
-//         style={{
-//           display: 'flex',
-//           alignItems: 'center',
-//           gap: '8px',
-//           padding: '10px 16px',
-//           backgroundColor: '#007bff',
-//           color: 'white',
-//           border: 'none',
-//           borderRadius: '6px',
-//           fontSize: '14px',
-//           fontWeight: '500',
-//           cursor: isConfirming ? 'wait' : 'pointer',
-//           opacity: isConfirming ? 0.7 : 1,
-//           transition: 'all 0.2s ease'
-//         }}
-//       >
-//         <span 
-//           style={{
-//             width: '10px',
-//             height: '10px',
-//             borderRadius: '50%',
-//             backgroundColor: 'white',
-//             opacity: 0.8
-//           }}
-//         />
-//         <span>👤 {currentUserInfo.name}</span>
-//         <span style={{ 
-//           transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-//           transition: 'transform 0.2s ease'
-//         }}>
-//           ▼
-//         </span>
-//       </button>
-
-//       {/* Dropdown Menu */}
-//       {isOpen && (
-//         <div style={{
-//           position: 'absolute',
-//           top: '100%',
-//           left: '0',
-//           right: '0',
-//           marginTop: '4px',
-//           backgroundColor: 'white',
-//           border: '1px solid #dee2e6',
-//           borderRadius: '6px',
-//           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-//           zIndex: 1000,
-//           overflow: 'hidden'
-//         }}>
-//           {/* Header */}
-//           <div style={{
-//             padding: '8px 12px',
-//             backgroundColor: '#f8f9fa',
-//             borderBottom: '1px solid #dee2e6',
-//             fontSize: '12px',
-//             fontWeight: '600',
-//             color: '#495057'
-//           }}>
-//             🔄 Switch User (Page Refresh)
-//           </div>
-
-//           {/* User Options */}
-//           {Object.entries(availableUsers).map(([key, info]) => (
-//             <button
-//               key={key}
-//               onClick={() => handleUserSelect(key)}
-//               style={{
-//                 display: 'flex',
-//                 alignItems: 'center',
-//                 justifyContent: 'space-between',
-//                 width: '100%',
-//                 padding: '10px 12px',
-//                 backgroundColor: key === currentUser ? '#e7f3ff' : 'transparent',
-//                 color: key === currentUser ? '#0056b3' : '#495057',
-//                 border: 'none',
-//                 borderBottom: '1px solid #f1f3f5',
-//                 fontSize: '14px',
-//                 cursor: 'pointer',
-//                 transition: 'all 0.2s ease'
-//               }}
-//               onMouseEnter={(e) => {
-//                 if (key !== currentUser) {
-//                   e.target.style.backgroundColor = '#f8f9fa';
-//                 }
-//               }}
-//               onMouseLeave={(e) => {
-//                 if (key !== currentUser) {
-//                   e.target.style.backgroundColor = 'transparent';
-//                 }
-//               }}
-//             >
-//               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-//                 <span
-//                   style={{
-//                     width: '8px',
-//                     height: '8px',
-//                     borderRadius: '50%',
-//                     backgroundColor: key === currentUser ? '#007bff' : '#6c757d'
-//                   }}
-//                 />
-//                 <span style={{ fontWeight: key === currentUser ? '600' : '400' }}>
-//                   {info.name}
-//                 </span>
-//               </div>
-              
-//               {key === currentUser && (
-//                 <span style={{ fontSize: '12px', opacity: 0.8 }}>✓ Active</span>
-//               )}
-//             </button>
-//           ))}
-
-//           {/* Footer */}
-//           <div style={{
-//             padding: '8px 12px',
-//             backgroundColor: '#f8f9fa',
-//             borderTop: '1px solid #dee2e6',
-//             fontSize: '11px',
-//             color: '#6c757d',
-//             textAlign: 'center'
-//           }}>
-//             💡 Switching users refreshes the page
-//           </div>
-//         </div>
-//       )}
-
-//       {/* Backdrop */}
-//       {isOpen && (
-//         <div
-//           style={{
-//             position: 'fixed',
-//             top: 0,
-//             left: 0,
-//             right: 0,
-//             bottom: 0,
-//             zIndex: 999
-//           }}
-//           onClick={() => setIsOpen(false)}
-//         />
-//       )}
-//     </div>
-//   );
-// };
-
-// export default UserSwitcher;
-
-
-import React, { useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useUsersStore } from '../store/useUsersStore';
+import { useFirebaseAuth } from '../contexts/FirebaseAuthContext';
 
-const UserSwitcher = ({ parentUid }) => {
-  const users = useUsersStore((s) => s.users);
-  const selectedKey = useUsersStore((s) => s.selectedKey);
-  const selectUser = useUsersStore((s) => s.selectUser);
-  const fetchUsers = useUsersStore((s) => s.fetchUsers);
-  const loading = useUsersStore((s) => s.loading);
+const UserSwitcher = ({ parentUid = null, onLogout = null }) => {
+  const navigate = useNavigate();
+  const { logout: fbLogout } = useFirebaseAuth();
+  const users = useUsersStore((s) => s.users ?? []);
+  // store's selectedKey is the canonical value (sub_username or id string)
+  const selectedKey = useUsersStore((s) => s.selectedKey ?? '');
+  // many stores expose a getter; keep it for display convenience
+  const selectedFromStore = useUsersStore((s) =>
+    typeof s.getSelectedUser === 'function' ? s.getSelectedUser() : null
+  );
+  // selection action provided by the store - expects a key string (sub_username or id)
+  const selectUserAction = useUsersStore((s) => s.selectUser ?? null);
 
-  // Load users when parentUid becomes available and store is empty
+  const [open, setOpen] = useState(false);
+  const [showSwitchList, setShowSwitchList] = useState(false);
+  const containerRef = useRef(null);
+
   useEffect(() => {
-    if (parentUid && users.length === 0) {
-      fetchUsers(parentUid).catch(() => { /* handled in store */ });
+    const onDocClick = (e) => {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target)) {
+        setOpen(false);
+        setShowSwitchList(false);
+      }
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, []);
+
+  const handleToggle = () => setOpen((s) => !s);
+
+  const handleSelectUser = (key) => {
+    if (!key) return;
+    // key should match store.selectedKey shape: sub_username or String(id)
+    // find user object for logging/fallback
+    const u = users.find((x) => (x.sub_username && x.sub_username === key) || String(x.id) === String(key) || String(x.user_bid_id) === String(key));
+    if (typeof selectUserAction === 'function') {
+      try {
+        selectUserAction(key);
+      } catch (e) {
+        console.warn('selectUserAction failed when passing key, attempting fallback', e);
+        // fallback to localStorage
+        if (u) try { localStorage.setItem('SF_SELECTED_SUBUSER', JSON.stringify(u)); } catch (err) {}
+      }
+    } else {
+      // fallback: store selection in localStorage so other components can read it
+      if (u) try { localStorage.setItem('SF_SELECTED_SUBUSER', JSON.stringify(u)); } catch (err) {}
+      console.warn('No store action found to switch user; saved selection in localStorage as fallback.');
     }
-  }, [parentUid, users.length, fetchUsers]);
-
-  // persist selection to localStorage
-  useEffect(() => {
-    try {
-      if (selectedKey) localStorage.setItem('SELECTED_SUB_USER', selectedKey);
-    } catch {}
-  }, [selectedKey]);
-
-  const handleChange = (e) => {
-    const key = e.target.value || null;
-    try {
-      console.log(`[UserSwitcher] switching from "${selectedKey || 'NONE'}" => "${key || 'NONE'}"`);
-    } catch{}
-    selectUser(key);
-    // do not force page reload; let app react to selection
+    setOpen(false);
+    setShowSwitchList(false);
   };
 
+  const handleMoreSettings = () => {
+    const id =
+      selectedFromStore?.document_id ??
+      selectedFromStore?.sub_user_id ??
+      selectedFromStore?.user_bid_id ??
+      selectedFromStore?.id ??
+      null;
+    const q = id ? `?selected=${encodeURIComponent(id)}` : '';
+    // open More Settings page for the selected sub-user
+    navigate(`/more-settings${q}`);
+    // navigate(`/update-profile${q}`);
+    setOpen(false);
+  };
+
+  const handleLogout = async () => {
+    setOpen(false);
+    if (typeof onLogout === 'function') {
+      try { await onLogout(); return; } catch (e) { console.warn(e); }
+    }
+    if (typeof fbLogout === 'function') {
+      try { await fbLogout(); } catch (e) { console.warn('Firebase logout failed', e); }
+    }
+  };
+
+  const displayLabel =
+    selectedFromStore?.sub_username ??
+    selectedFromStore?.username ??
+    selectedFromStore?.name ??
+    selectedFromStore?.displayName ??
+    'Switch account';
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <label htmlFor="subUserSelect" style={{ fontSize: 12, color: '#6c757d' }}>Account:</label>
-      <select
-        id="subUserSelect"
-        value={selectedKey || ''}
-        onChange={handleChange}
-        disabled={loading}
-        style={{
-          padding: '6px 8px',
-          borderRadius: '4px',
-          border: '1px solid #ced4da',
-          background: 'white',
-          color: '#495057',
-          fontSize: '13px'
-        }}
+    <div className="relative inline-block text-left" ref={containerRef}>
+      <button
+        onClick={handleToggle}
+        className="px-3 py-1 bg-white border rounded flex items-center gap-2"
+        aria-haspopup="true"
+        aria-expanded={open}
       >
-        <option value="">Select account</option>
-        {users.map((u) => {
-          const key = u.sub_username || String(u.id);
-          const label = u.sub_username || u.name || `User ${u.id}`;
-          return <option key={key} value={key}>{label}</option>;
-        })}
-      </select>
+        <span className="text-sm">{displayLabel}</span>
+        <svg className="w-3 h-3 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-56 bg-white border rounded shadow-lg z-50 p-2">
+          <button
+            onClick={() => setShowSwitchList((s) => !s)}
+            className="w-full text-left px-2 py-2 rounded hover:bg-gray-100"
+          >
+            Switch account
+          </button>
+
+          {showSwitchList && (
+            <div className="px-2 py-2">
+              <select
+                onChange={(e) => handleSelectUser(e.target.value)}
+                className="w-full border rounded px-2 py-1"
+                value={String(selectedKey || '')}
+              >
+                <option value="">Select account...</option>
+                {users.map((u) => {
+                  const key = u.sub_username || String(u.id || u.user_bid_id || u.document_id || '');
+                  const label = u.sub_username ?? u.username ?? u.name ?? `User ${key}`;
+                  return (
+                    <option key={String(key)} value={String(key)}>
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
+              <div className="mt-2 text-xs text-gray-500"></div>
+            </div>
+          )}
+
+          <button onClick={handleMoreSettings} className="w-full text-left px-2 py-2 rounded hover:bg-gray-100">
+            More settings
+          </button>
+
+          <button onClick={handleLogout} className="w-full text-left px-2 py-2 rounded hover:bg-gray-100 text-red-600">
+            Logout
+          </button>
+        </div>
+      )}
     </div>
   );
 };

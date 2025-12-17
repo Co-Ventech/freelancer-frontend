@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { useUsersStore } from '../store/useUsersStore';
-import { markNotificationRead } from '../utils/api';
+import { markNotificationRead, getNotificationDetails } from '../utils/api';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useModal } from '../contexts/ModalContext';
 import ProjectDetailsModal from './ProjectDetailsModal';
+import { useFirebaseAuth } from '../contexts/FirebaseAuthContext';
 
 const formatTime = (ts) => {
   const diff = Date.now() - ts;
@@ -21,6 +22,8 @@ const NotificationBell = () => {
   const { modalState, openModal, closeModal } = useModal();
   const [open, setOpen] = useState(false);
   const [pendingIds, setPendingIds] = useState(new Set());
+  const [pendingViewIds, setPendingViewIds] = useState(new Set());
+    const { user: fbUser } = useFirebaseAuth();
   const selectedSubUser = useUsersStore((s) => s.getSelectedUser && s.getSelectedUser());
 
   const grouped = useMemo(() => items, [items]);
@@ -47,6 +50,45 @@ const NotificationBell = () => {
       markRead(id);
     } finally {
       setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  const handleView = async (notification) => {
+    const subUserId = selectedSubUser?.document_id || selectedSubUser?.sub_user_id || selectedSubUser?.id;
+    // if no selected sub-user, fallback to inline projectData (if any)
+    if (!subUserId) {
+      openModal('projectDetails', notification.projectData || null);
+      return;
+    }
+
+    const id = notification.id;
+    try {
+      setPendingViewIds(prev => new Set(prev).add(id));
+      const idToken = typeof fbUser?.getIdToken === 'function' ? await fbUser.getIdToken() : null;
+      const res = await getNotificationDetails(subUserId, notification.id, idToken);
+      const d = res?.data?.data || res?.data || {};
+      const projectData = {
+        id: d.project_id || d.projectId || d.id,
+        title: d.title || d.project_title || '',
+        description: d.description || d.body || '',
+        amount: d.bid_amount || d.amount || 0,
+        currency: d.currency || 'USD',
+        currencySign: d.currency_sign || d.currencySign || '$',
+        seo_url: d.seo_url || d.seoUrl || null,
+        // include raw payload for debugging if needed
+        _raw: d,
+      };
+      openModal('projectDetails', projectData);
+    } catch (err) {
+      console.warn('Failed to load project details', err);
+      // fallback to any embedded data or show error
+      openModal('projectDetails', notification.projectData || { id: null, title: 'Details unavailable', description: err?.message || String(err) });
+    } finally {
+      setPendingViewIds(prev => {
         const next = new Set(prev);
         next.delete(id);
         return next;
@@ -127,11 +169,11 @@ const NotificationBell = () => {
                   key={n.id}
                   style={{
                     display: 'flex',
-                    gap: 12,
+                    gap: 25,
                     padding: 14,
                     borderBottom: cardBorderBottom,
                     background: cardBackground,
-                    borderLeft: `4px solid ${isErrorCard ? '#f5c2c7' : 'transparent'}` // subtle left accent for errors
+                    borderLeft: `4px solid ${isErrorCard ? '#fc0a22ff' : 'transparent'}` 
                   }}
                 >         
                  <div style={{
@@ -145,7 +187,7 @@ const NotificationBell = () => {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                      <span style={{ fontWeight: 600, color: titleColor }}>{title}</span>
-                     <span style={{ fontSize: 12, color: '#868e96' }}>{formatTime(n.createdAt)}</span>
+                     <span style={{ fontSize: 12, color: '#3c4249ff' }}>{formatTime(n.createdAt)}</span>
                      </div>
                    <div style={{ color: descriptionColor, fontSize: 14 }}>
                       {/* show API description first if available */}
@@ -155,10 +197,11 @@ const NotificationBell = () => {
                     <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                       {n.projectData && (
                         <button 
-                          onClick={() => openModal('projectDetails', n.projectData)} 
-                          style={{ border: '1px solid #dee2e6', background: 'white', color: '#28a745', cursor: 'pointer', padding: '6px 10px', borderRadius: 6 }}
+                          onClick={() => handleView(n)} 
+                          disabled={pendingViewIds.has(n.id)}
+                          style={{ border: '1px solid #dee2e6', background: pendingViewIds.has(n.id) ? '#f1f3f5' : 'white', color: pendingViewIds.has(n.id) ? '#6c757d' : '#28a745', cursor: pendingViewIds.has(n.id) ? 'default' : 'pointer', padding: '6px 10px', borderRadius: 6 }}
                         >
-                          View
+                          {pendingViewIds.has(n.id) ? 'Loading…' : 'View'}
                         </button>
                       )}
                       {!n.read && (

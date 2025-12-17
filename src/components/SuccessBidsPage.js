@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo , useCallback} from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { API_BASE, getAuthHeaders } from '../utils/api';
 import { useUsersStore } from '../store/useUsersStore';
@@ -9,10 +9,10 @@ const SuccessBidsPage = () => {
   const [loadingBids, setLoadingBids] = useState(true);
   const [error, setError] = useState(null);
 
-   // pagination state
+  // pagination state
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-   const [totalCount, setTotalCount] = useState(null);
+  const [totalCount, setTotalCount] = useState(null);
   const [paginationIsNext, setPaginationIsNext] = useState(false);
 
   // UI state (same pattern as AdminDashboard)
@@ -20,6 +20,7 @@ const SuccessBidsPage = () => {
   const [bidderFilter, setBidderFilter] = useState('ALL');
   const [bidderTypeFilter, setBidderTypeFilter] = useState('ALL');
   const [projectTypeFilter, setProjectTypeFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState('ALL');
 
   // dynamic sub-users from store (used for filters / names)
   const subUsers = useUsersStore((s) => s.users || []);
@@ -27,12 +28,12 @@ const SuccessBidsPage = () => {
   const userFilterList = useMemo(() => {
     return Array.isArray(subUsers)
       ? subUsers
-          .map((u) => {
-            const id = String(u.user_bid_id || u.bidder_id || u.user_bid || '');
-            const name = u.sub_username || u.name || `sub_${(u.document_id || '').slice(0, 6)}`;
-            return id ? { id, name } : null;
-          })
-          .filter(Boolean)
+        .map((u) => {
+          const id = String(u.user_bid_id || u.bidder_id || u.user_bid || '');
+          const name = u.sub_username || u.name || `sub_${(u.document_id || '').slice(0, 6)}`;
+          return id ? { id, name } : null;
+        })
+        .filter(Boolean)
       : [];
   }, [subUsers]);
 
@@ -70,19 +71,20 @@ const SuccessBidsPage = () => {
     return 'bg-red-100 text-red-800 border-yellow-300';
   };
 
- const buildBidsUrl = useCallback(() => {
+  const buildBidsUrl = useCallback(() => {
     const params = [];
     if (bidderFilter && bidderFilter !== 'ALL') params.push(`bidder_id=${encodeURIComponent(bidderFilter)}`);
     if (bidderTypeFilter && bidderTypeFilter !== 'ALL') params.push(`bidder_type=${encodeURIComponent(bidderTypeFilter)}`);
     if (projectTypeFilter && projectTypeFilter !== 'ALL') params.push(`type=${encodeURIComponent(projectTypeFilter)}`);
+    if (dateFilter && dateFilter !== 'ALL') params.push(`date_from=${encodeURIComponent(dateFilter)}`);
     params.push(`page=${encodeURIComponent(page)}`);
     params.push(`offset=${encodeURIComponent(limit)}`); // use 'offset' per backend
     const qs = params.length ? `?${params.join('&')}` : '';
     return `${(API_BASE || '').replace(/\/$/, '')}/bids${qs}`;
-  }, [bidderFilter, bidderTypeFilter, projectTypeFilter, page, limit]);
+  }, [bidderFilter, bidderTypeFilter, projectTypeFilter, dateFilter, page, limit]);
 
 
-  const loadBids = useCallback( async () => {
+  const loadBids = useCallback(async () => {
     try {
       setLoadingBids(true);
       setError(null);
@@ -96,7 +98,7 @@ const SuccessBidsPage = () => {
       // read pagination from response if available
       const pagination = res.data?.pagination || res.data?.meta || res.data?.paging || null;
       if (pagination) {
-          const respPage = Number(pagination.page) || page;
+        const respPage = Number(pagination.page) || page;
         const respLimit = Number(pagination.limit || pagination.offset) || limit;
         const respIsNext = !!pagination.is_next;
         setPage(respPage);
@@ -106,7 +108,7 @@ const SuccessBidsPage = () => {
         const numericTotal = typeof possibleTotal !== 'undefined' && possibleTotal !== null ? Number(possibleTotal) : null;
         setTotalCount(Number.isFinite(numericTotal) ? numericTotal : null);
 
-        
+
         // use respCountForPage to determine end range
       } else {
         // if no pagination provided, clear paginationIsNext and totalCount to conservative defaults
@@ -117,7 +119,7 @@ const SuccessBidsPage = () => {
       setSavedBids(bids);
     } catch (err) {
       console.error('Failed to load bids:', err);
-     setSavedBids([]);
+      setSavedBids([]);
       setError(err?.message || 'Failed to load bids');
     } finally {
       setLoadingBids(false);
@@ -125,7 +127,7 @@ const SuccessBidsPage = () => {
   }, [buildBidsUrl, page, limit]);
   const canPrev = page > 1;
   // determine ability to go next:
- // prefer backend-provided paginationIsNext; fallback to heuristic (full page received).
+  // prefer backend-provided paginationIsNext; fallback to heuristic (full page received).
   const canNext = paginationIsNext || (savedBids.length === limit && !(totalCount !== null && page * limit >= totalCount));
   const goPrev = () => { if (canPrev) setPage((p) => p - 1); };
   const goNext = () => { if (canNext) setPage((p) => p + 1); };
@@ -181,6 +183,13 @@ const SuccessBidsPage = () => {
               <option value="fixed">Fixed</option>
               <option value="hourly">Hourly</option>
             </select>
+            <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="border px-2 py-1 rounded">
+              <option value="ALL">All</option>
+              <option value="24 hours">Last 24 hours</option>
+              <option value="3 days">Last 3 days</option>
+              <option value="7 days">Last 7 days</option>
+              <option value="14 days">Last 14 days</option>
+            </select>
 
             <div className="flex items-center gap-1">
               <button onClick={() => setViewMode('grid')} className={`px-3 py-1 rounded ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>Grid</button>
@@ -194,7 +203,7 @@ const SuccessBidsPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white p-4 rounded shadow">
             <div className="text-sm text-gray-500">Saved Bids</div>
-          <div className="text-xl font-semibold">{totalCount ?? savedBids.length}</div>   
+            <div className="text-xl font-semibold">{totalCount ?? savedBids.length}</div>
           </div>
           {/* <div className="bg-white p-4 rounded shadow">
             <div className="text-sm text-gray-500">Unique Bidders</div>
@@ -306,8 +315,8 @@ const SuccessBidsPage = () => {
           </div>
         )}
 
-           {/* Pagination controls */}
-           <div className="mt-4 flex items-center justify-between">
+        {/* Pagination controls */}
+        <div className="mt-4 flex items-center justify-between">
           <div className="text-sm text-gray-600">
             {(() => {
               const start = savedBids.length === 0 ? 0 : ((page - 1) * limit) + 1;
