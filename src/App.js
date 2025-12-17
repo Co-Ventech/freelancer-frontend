@@ -503,7 +503,7 @@ function App() {
   if (fbLoading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#F8F9FA' }}>
-        <div style={{ fontSize: 24, marginBottom: 10 }}>:robot_face:</div>
+        <div style={{ fontSize: 24, marginBottom: 10 }}>🤖</div>
         <div style={{ color: '#6C757D' }}>Loading...</div>
       </div>
     );
