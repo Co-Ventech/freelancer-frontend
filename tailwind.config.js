@@ -10,6 +10,11 @@ module.exports = {
         'pulse-slow': 'pulse 3s ease-in-out infinite',
       },
       colors: {
+        'primary-blue': '#1F4ECF',
+        'light-blue': '#E6F0FF',
+        'light-blue-shade-20': '#F5F7FA',
+        'background-body': '#FFFFFF',
+        'primary-black-shade-10': '#161C2D',
         primary: {
           50: '#eff6ff',
           100: '#dbeafe',
