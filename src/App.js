@@ -478,11 +478,21 @@ import RegisterForm from './components/RegisterForm';
 import AdminDashboard from './components/AdminDashboard';
 import SuccessBidsPage from './components/SuccessBidsPage';
 import SubUserRegister from './components/SubUserRegister';
+import MoreSettings from './components/MoreSettings';
+import AITemplatesPage from './components/aiTemplates/AITemplatesPage';
+import SimpleAddTemplateForm from './components/aiTemplates/SimpleAddTemplateForm';
+import MainLayout from './components/MainLayout';
+import Dashboard from './components/Dashboard';
+import { FirebaseAuthProvider } from './contexts/FirebaseAuthContext';
+import { AuthProvider } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
+import { ModalProvider } from './contexts/ModalContext';
+import { useFirebaseAuth } from './contexts/FirebaseAuthContext';
+import FilterContainer from './components/FilterContainer';
 import { useUsersStore } from './store/useUsersStore';
 import UserSwitcher from './components/UserSwitcher';
 import TopBanner from './components/ui/TopBanner';
 import About from './pages/About';
-
 
 
 const MainApp = () => {
