@@ -1,0 +1,42 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_IP }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Navigate to project directory
+            cd ~/smart_Freelance
+            
+            # Pull latest changes
+            git pull origin main
+            
+            # Install dependencies
+            npm ci
+            
+            # Build the project
+            npm run build
+            
+            # Restart PM2 processes
+            pm2 restart smart-frontend
+            
+            # Save PM2 process list
+            pm2 save
+            
+            # Show status
+            pm2 list
