@@ -89,7 +89,7 @@ const LoginForm = () => {
             onClick={() => navigate('/register')}
             className="text-blue-600 hover:underline"
           >
-            Register
+            Register 
           </button>
         </p>
       </div>
